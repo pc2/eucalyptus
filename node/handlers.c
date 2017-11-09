@@ -83,6 +83,7 @@ permission notice:
 #include <eucalyptus.h>
 
 #define MONITORING_PERIOD (5)
+#define OP_TIMEOUT_PERNODE 10
 
 /* used by lower level handlers */
 sem *hyp_sem;	/* semaphore for serializing domain creation */
@@ -700,6 +701,39 @@ static int init (void)
 	}
 	logfile(log, i);
 
+	/* get sensor commands */
+	tmp = getConfString(config, "UTILIZATION_SENSOR_CMD");
+	if (tmp) {
+	  strncpy(nc_state.utilization_sensor_cmd, tmp, CHAR_BUFFER_SIZE);
+	}
+	else {
+	  strncpy(nc_state.utilization_sensor_cmd, "", CHAR_BUFFER_SIZE);
+	}
+
+	tmp = getConfString(config, "NETWORK_UTILIZATION_SENSOR_CMD");
+	if (tmp) {
+	  strncpy(nc_state.network_utilization_sensor_cmd, tmp, CHAR_BUFFER_SIZE);
+	}
+	else {
+	  strncpy(nc_state.network_utilization_sensor_cmd, "", CHAR_BUFFER_SIZE);
+	}
+
+	tmp = getConfString(config, "POWER_CONSUMPTION_SENSOR_CMD");
+	if (tmp) {
+	  strncpy(nc_state.power_consumption_sensor_cmd, tmp, CHAR_BUFFER_SIZE);
+	}
+	else {
+	  strncpy(nc_state.power_consumption_sensor_cmd, "", CHAR_BUFFER_SIZE);
+	}
+
+	tmp = getConfString(config, "INSTANCE_UTILIZATION_SENSOR_CMD");
+	if (tmp) {
+	  strncpy(nc_state.instance_utilization_sensor_cmd, tmp, CHAR_BUFFER_SIZE);
+	}
+	else {
+	  strncpy(nc_state.instance_utilization_sensor_cmd, "", CHAR_BUFFER_SIZE);
+	}
+
 #define GET_VAR_INT(var,name) \
 	if (get_conf_var(config, name, &s)>0){\
 		var = atoi(s);\
@@ -1072,4 +1106,166 @@ int doDetachVolume (ncMetadata *meta, char *instanceId, char *volumeId, char *re
 		ret = nc_state.D->doDetachVolume (&nc_state, meta, instanceId, volumeId, remoteDev, localDev, force);
 
 	return ret;
+}
+
+int doDescribeHardware (ncMetadata *meta, ncHardwareInfo *hwinfo)
+{
+  int ret;
+  if (init ())
+    return (-1);
+
+  logprintfl (EUCAINFO, "doDescribeHardware() invoked\n");
+  
+  if (nc_state.H->doDescribeHardware)
+    ret = nc_state.H->doDescribeHardware (&nc_state, meta, hwinfo);
+  else
+    ret = nc_state.D->doDescribeHardware (&nc_state, meta, hwinfo);
+
+  return ret;
+}
+
+int doDescribeUtilization (ncMetadata *meta, ncUtilization *utilization)
+{
+  int ret;
+  if (init ())
+    return (-1);
+
+  logprintfl (EUCAINFO, "doDescribeUtilization() invoked\n");
+  
+  if (nc_state.H->doDescribeUtilization)
+    ret = nc_state.H->doDescribeUtilization (&nc_state, meta, utilization);
+  else
+    ret = nc_state.D->doDescribeUtilization (&nc_state, meta, utilization);
+  
+  return ret;
+}
+
+int doMigrateInstance (ncMetadata *meta, char *instanceId, char *target)
+{
+  int ret;
+  if (init ()) {
+    logprintfl(EUCAERROR, "Error at init()\n");
+    return (-1);
+  }
+
+  logprintfl (EUCAINFO, "doMigrateInstance() invoked\n");
+  
+  if (nc_state.H->doMigrateInstance) {
+    logprintfl(EUCADEBUG, "Using hypervisor handler for migration\n");
+    ret = nc_state.H->doMigrateInstance (&nc_state, meta, instanceId, target);
+  }
+  else {
+    logprintfl(EUCADEBUG, "Using default handler for migration\n");
+    ret = nc_state.D->doMigrateInstance (&nc_state, meta, instanceId, target);
+  }
+  
+  logprintfl (EUCADEBUG, "doMigrateInstance() done\n");
+  return ret;
+}
+
+int doAdoptInstances (ncMetadata *meta)
+{
+  int ret;
+  if (init ())
+    return (-1);
+  
+  logprintfl (EUCADEBUG, "doAdoptInstances() invoked\n");
+
+  if (nc_state.H->doAdoptInstances)
+    ret = nc_state.H->doAdoptInstances (&nc_state, meta);
+  else
+    ret = nc_state.D->doAdoptInstances (&nc_state, meta);
+
+  return ret;
+}
+
+int doDescribeInstanceUtilization (ncMetadata *meta, char *instanceId, int *utilization)
+{
+  int ret;
+  if (init ())
+    return (-1);
+  
+  logprintfl (EUCADEBUG, "doDescribeInstanceUtilization() invoked\n");
+
+  if (nc_state.H->doDescribeInstanceUtilization)
+    ret = nc_state.H->doDescribeInstanceUtilization (&nc_state, meta, instanceId, utilization);
+  else
+    ret = nc_state.D->doDescribeInstanceUtilization (&nc_state, meta, instanceId, utilization);
+
+  return ret;
+}
+
+int timeread(int fd, void *buf, size_t bytes, int timeout) {
+  int rc;
+  fd_set rfds;
+  struct timeval tv;
+
+  if (timeout <= 0) timeout = 1;
+
+  FD_ZERO(&rfds);
+  FD_SET(fd, &rfds);
+  
+  tv.tv_sec = timeout;
+  tv.tv_usec = 0;
+  
+  rc = select(fd+1, &rfds, NULL, NULL, &tv);
+  if (rc <= 0) {
+    // timeout
+    logprintfl(EUCAERROR, "select() timed out for read: timeout=%d\n", timeout);
+    return(-1);
+  }
+  rc = read(fd, buf, bytes);
+  return(rc);
+}
+
+int perform_sensor_call(char *cmd, int *result)
+{
+  pid_t pid;
+  int child_stdout[2], retval=0, status;
+  char resultStr[CHAR_BUFFER_SIZE];
+  time_t op_start, op_timer;
+
+  op_start = time(NULL);
+  op_timer = OP_TIMEOUT_PERNODE;
+  
+  if (cmd == NULL || !strcmp(cmd, "")) {
+    *result = 0;
+    logprintfl (EUCAERROR, "No sensor command\n");
+    return (ERROR);
+  }
+
+  if (pipe(child_stdout) < 0) {
+    logprintfl (EUCAERROR, "pipe() failed\n");
+    return (ERROR);
+  }
+
+  pid = fork ();
+
+  if (pid == 0) {
+    close (child_stdout[0]);
+    dup2 (child_stdout[1], STDOUT_FILENO);
+    retval=system (cmd);
+    close (child_stdout[1]);
+    exit (retval);
+  } else if (pid > 0) {
+    close (child_stdout[1]);
+    op_timer = OP_TIMEOUT_PERNODE - (time(NULL) - op_start);
+    if (timeread(child_stdout[0], resultStr, CHAR_BUFFER_SIZE, op_timer) < 0) {
+      logprintfl (EUCAERROR, "Can not read sensordata\n");
+      kill(pid, SIGKILL);
+      wait(&status);
+      *result = 0;
+    }
+    else {
+      *result = atoi(resultStr);
+      logprintfl (EUCAINFO, "Sensor %s returned data %d\n", cmd, *result);
+      wait(&status);
+      retval=WEXITSTATUS(status);
+    }
+    close (child_stdout[0]);
+  } else {
+    logprintfl (EUCAERROR, "fork() failed\n");
+    return (ERROR);
+  }
+  return (retval);
 }

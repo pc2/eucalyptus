@@ -966,6 +966,8 @@ int cc_runInstances(char *amiId, char *amiURL, char *kernelId, char *kernelURL, 
   return 0;
 }
 
+
+
 /*
 int cc_registerImage(char *imageloc, axutil_env_t *env, axis2_stub_t *stub) {
   int i;
@@ -1012,3 +1014,128 @@ int cc_registerImage(char *imageloc, axutil_env_t *env, axis2_stub_t *stub) {
   return 0;
 }
 */
+
+int cc_migrateInstances(char *target, axutil_env_t *env, axis2_stub_t *stub) {
+  adb_MigrateInstances_t *tiIn;
+  adb_migrateInstancesType_t *tit;
+
+  adb_MigrateInstancesResponse_t *tiOut;
+  adb_migrateInstancesResponseType_t *tirt;
+  int i;
+  axis2_bool_t status;
+
+  tit = adb_migrateInstancesType_create(env);
+
+  adb_migrateInstancesType_set_userId(tit, env, "eucalyptus");
+  {
+    char cidstr[9];
+    bzero(cidstr, 9);
+    srand(time(NULL)+getpid());
+    for (i=0; i<8; i++) {
+      cidstr[i] = rand()%26+'a';
+    }
+    adb_migrateInstancesType_set_correlationId(tit, env, cidstr);
+  }
+  if (target)
+    adb_migrateInstancesType_set_target(tit, env, target);
+  
+  tiIn = adb_MigrateInstances_create(env);
+  adb_MigrateInstances_set_MigrateInstances(tiIn, env, tit);
+  
+  tiOut = axis2_stub_op_EucalyptusCC_MigrateInstances(stub, env, tiIn);
+  if (!tiOut) {
+    printf("ERROR: MigrateInstances failed NULL\n");
+    return(1);
+  } else {
+    tirt = adb_MigrateInstancesResponse_get_MigrateInstancesResponse(tiOut, env);
+    status = adb_migrateInstancesResponseType_get_return(tirt, env);
+    if (status == AXIS2_FALSE) {
+      printf("operation fault '%s'\n", adb_migrateInstancesResponseType_get_statusMessage(tirt, env));
+    } else {
+    }
+  }
+  return(status);
+}
+
+int cc_monitorUtilization(axutil_env_t *env, axis2_stub_t *stub) {
+  adb_MonitorUtilization_t *tiIn;
+  adb_monitorUtilizationType_t *tit;
+
+  adb_MonitorUtilizationResponse_t *tiOut;
+  adb_monitorUtilizationResponseType_t *tirt;
+  int i;
+  axis2_bool_t status;
+
+  tit = adb_monitorUtilizationType_create(env);
+
+  adb_monitorUtilizationType_set_userId(tit, env, "eucalyptus");
+  {
+    char cidstr[9];
+    bzero(cidstr, 9);
+    srand(time(NULL)+getpid());
+    for (i=0; i<8; i++) {
+      cidstr[i] = rand()%26+'a';
+    }
+    adb_monitorUtilizationType_set_correlationId(tit, env, cidstr);
+  }
+  
+  tiIn = adb_MonitorUtilization_create(env);
+  adb_MonitorUtilization_set_MonitorUtilization(tiIn, env, tit);
+  
+  tiOut = axis2_stub_op_EucalyptusCC_MonitorUtilization(stub, env, tiIn);
+  if (!tiOut) {
+    printf("ERROR: MonitorUtilization failed NULL\n");
+    return(1);
+  } else {
+    tirt = adb_MonitorUtilizationResponse_get_MonitorUtilizationResponse(tiOut, env);
+    status = adb_monitorUtilizationResponseType_get_return(tirt, env);
+    if (status == AXIS2_FALSE) {
+      printf("operation fault '%s'\n", adb_monitorUtilizationResponseType_get_statusMessage(tirt, env));
+    } else {
+    }
+  }
+  return(status);
+}
+
+int cc_changeSchedulingPolicy(axutil_env_t *env, axis2_stub_t *stub, char *policy, int performanceWeight, int localityWeight, int energyWeight) {
+  adb_ChangeSchedulingPolicy_t *cspIn;
+  adb_changeSchedulingPolicyType_t *csptIn;
+
+  adb_ChangeSchedulingPolicyResponse_t *cspOut;
+  adb_changeSchedulingPolicyResponseType_t *csprt;
+  int i;
+  axis2_bool_t status;
+
+  csptIn = adb_changeSchedulingPolicyType_create(env);
+  adb_changeSchedulingPolicyType_set_userId(csptIn, env, "eucalyptus");
+  {
+    char cidstr[9];
+    bzero(cidstr, 9);
+    srand(time(NULL)+getpid());
+    for (i=0; i<8; i++) {
+      cidstr[i] = rand()%26+'a';
+    }
+    adb_changeSchedulingPolicyType_set_correlationId(csptIn, env, cidstr);
+  }
+  adb_changeSchedulingPolicyType_set_policy(csptIn, env, policy);
+  adb_changeSchedulingPolicyType_set_performanceWeight(csptIn, env, performanceWeight);
+  adb_changeSchedulingPolicyType_set_localityWeight(csptIn, env, localityWeight);
+  adb_changeSchedulingPolicyType_set_energyWeight(csptIn, env, energyWeight);
+
+  cspIn = adb_ChangeSchedulingPolicy_create(env);
+  adb_ChangeSchedulingPolicy_set_ChangeSchedulingPolicy(cspIn, env, csptIn);
+
+  cspOut = axis2_stub_op_EucalyptusCC_ChangeSchedulingPolicy(stub, env, cspIn);
+  if (!cspOut) {
+    printf("ERROR: ChangeSchedulingPolicy failed NULL\n");
+    return (1);
+  } else {
+    csprt = adb_ChangeSchedulingPolicyResponse_get_ChangeSchedulingPolicyResponse(cspOut, env);
+    status = adb_changeSchedulingPolicyResponseType_get_return(csprt, env);
+    if (status == AXIS2_FALSE) {
+      printf("operation failt '%s'\n", adb_changeSchedulingPolicyResponseType_get_statusMessage(csprt, env));
+    } else {
+    }
+  }
+  return (status);
+}

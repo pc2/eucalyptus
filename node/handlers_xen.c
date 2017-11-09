@@ -562,6 +562,42 @@ doDetachVolume (	struct nc_state_t *nc,
     return ret;
 }
 
+static int doMigrateInstance(struct nc_state_t *nc, ncMetadata *meta, char *instanceId, char *target) 
+{
+  // only for testing, should be done by libvirt
+  int status, ret = OK;
+  if (instanceId && target) {
+    int pid;
+    pid = fork();
+    if (pid == 0) {
+      char *cmd;
+      sprintf(cmd, "xm migrate -l %s %s", instanceId, target);
+      ret = system(cmd);
+      logprintfl(EUCAINFO, "migrated %s to %s\n", instanceId, target);
+      exit (ret);
+    } else {
+      wait(&status);
+      ret=WEXITSTATUS(status); 
+    }
+
+    if (ret == OK) {
+      ncInstance *instance;
+      sem_p (inst_sem);
+      instance = find_instance(&global_instances, instanceId);
+      logprintfl(EUCADEBUG, "doMigrateInstance(): removing instance from global_instances\n");
+      if (remove_instance (&global_instances, instance) != OK) {
+        logprintfl(EUCAERROR, "doMigrateInstance(): cannot remove instance from global_instances\n");
+        ret = ERROR;
+      }
+      sem_v (inst_sem);
+    }
+
+    return (ret);
+  }
+  logprintfl(EUCAERROR, "No instanceId or target\n");
+  return (ERROR);
+}
+
 struct handlers xen_libvirt_handlers = {
     .name = "xen",
     .doInitialize        = doInitialize,
@@ -574,6 +610,11 @@ struct handlers xen_libvirt_handlers = {
     .doStartNetwork      = NULL,
     .doPowerDown         = NULL,
     .doAttachVolume      = doAttachVolume,
-    .doDetachVolume      = doDetachVolume
+    .doDetachVolume      = doDetachVolume,
+    .doDescribeHardware  = NULL,
+    .doDescribeUtilization = NULL,
+    .doMigrateInstance   = NULL,
+    .doAdoptInstances    = NULL,
+    .doDescribeInstanceUtilization = NULL
 };
 

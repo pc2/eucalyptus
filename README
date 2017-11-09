@@ -1,4 +1,4 @@
-        EUCALYPTUS: Elastic Utility Computing Architecture 
+        EUCALYPTUS: Elastic Utility Computing Architecture
       for Linking Your Programs to Transiently Useful Systems
 
 EUCALYPTUS is an open source service overlay that implements elastic
@@ -34,3 +34,8 @@ module additions to the host OS domain.
 For more information and complete documentation, please visit our
 website (http://open.eucalyptus.com).
 
+-----------------------------------------------------------------------------------
+
+This EUCALYPTUS distribution, based on the EUCALYPTUS 1.6.1 source, contains
+extensions for a rule based mapping of virtual machines. Please have a look at
+eucalyptus.conf for setting up mapping rules.

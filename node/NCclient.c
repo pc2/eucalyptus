@@ -81,6 +81,10 @@ void usage (void)
              "\t\tdescribeResource\n"
              "\t\tattachVolume\t\t[-i -V -R -L]\n"
              "\t\tdetachVolume\t\t[-i -V -R -L]\n"
+	     "\t\tdescribeUtilization\n"
+	     "\t\tdescribeHardware\n"
+	     "\t\tmigrateInstance\n"
+	     "\t\tdescribeInstanceUtilization\n"
         "\toptions:\n"
              "\t\t-d \t\t- print debug output\n"
              "\t\t-h \t\t- this help information\n"
@@ -100,6 +104,7 @@ void usage (void)
              "\t\t-U [string] \t- user data to store with instance\n"
              "\t\t-I [string] \t- launch index to store with instance\n"
              "\t\t-G [str:str: ] \t- group names to store with instance\n"
+	     "\t\t-t [string] \t- target for migration\n"
         );
 
     exit (1);
@@ -131,8 +136,9 @@ int main (int argc, char **argv)
 	char * command = NULL;
     int count = 1;
 	int ch;
+    char * migration_target = NULL;
     
-	while ((ch = getopt(argc, argv, "hdn:w:i:m:k:r:e:a:c:h:V:R:L:FU:I:G:")) != -1) {
+	while ((ch = getopt(argc, argv, "hdn:w:i:m:k:r:e:a:c:h:t:V:R:L:FU:I:G:")) != -1) {
 		switch (ch) {
         case 'c':
             count = atoi (optarg);
@@ -197,6 +203,9 @@ int main (int argc, char **argv)
         case 'I':
             launch_index = optarg;
             break;
+	case 't':
+	    migration_target = optarg;
+	    break;
         case 'G':
         {
             int i;
@@ -456,6 +465,76 @@ int main (int argc, char **argv)
             exit(1);
         }
         
+    /***********************************************************/
+    } else if (!strcmp(command, "describeUtilization")) {
+      ncUtilization utilization;
+      int rc = ncDescribeUtilizationStub (stub, &meta, &utilization);
+      if (rc != 0) {
+	printf ("ncDescribeUtilization() failed: error=%d\n", rc);
+	exit(1);
+      } else {
+	printf("Host utilization:\n");
+	printf("\tUtilization:\t\t%d\n", utilization.utilization);
+	printf("\tNetwork-utilization:\t%d\n", utilization.networkUtilization);
+	printf("\tPower-consumption:\t%d\n", utilization.powerConsumption);
+	printf("\tTimepoint:\t\t%ld\n", utilization.timePoint);
+	/*printf("Instance utilization:\n");
+	if (utilization.numInstances == 0)
+	  printf("\tNo running instances\n");
+	else {
+	  int i;
+	  for (i=0; i<utilization.numInstances; i++) {
+	    int j;
+	    printf("\tInstanceId:\t\t%s\n", utilization.instances[i].instanceId);
+	    printf("\tNumber of VCPUs:\t%d\n", utilization.instances[i].numVcpus);
+	    printf("\tVCPU utilization:\n");
+	    for (j=0; j<utilization.instances[i].numVcpus; j++) {
+	      printf("\t\tVCPU %d:\t%d\n", j, utilization.instances[i].vcpuUtilization[j]);
+	    }
+	    printf("\tVNetworkutilization:\t%d\n", utilization.instances[i].vnetworkUtilization);
+	  }
+	  }*/
+      }
+
+    /***********************************************************/ 
+    } else if (!strcmp(command, "describeHardware")) {
+      ncHardwareInfo hwinfo;
+      int rc = ncDescribeHardwareStub (stub, &meta, &hwinfo);
+      if (rc != 0) {
+	printf ("ncDescribeHardware() failed: error=%d\n", rc);
+	exit(1);
+      } else {
+	printf ("CPU Model:\t%s\n", hwinfo.model);
+	printf ("Memory:\t\t%ld\n", hwinfo.memory);
+	printf ("CPUs:\t\t%d\n", hwinfo.cpus);
+	printf ("MHz:\t\t%d\n", hwinfo.mhz);
+	printf ("Nodes:\t\t%d\n", hwinfo.nodes);
+	printf ("Sockets:\t%d\n", hwinfo.sockets);
+	printf ("Cores:\t\t%d\n", hwinfo.cores);
+	printf ("Threads:\t%d\n", hwinfo.threads);
+      }
+    /***********************************************************/
+    } else if (!strcmp(command, "migrateInstance")) {
+      CHECK_PARAM(instance_id, "instance ID");
+      CHECK_PARAM(migration_target, "migration target");
+      int rc = ncMigrateInstanceStub (stub, &meta, instance_id, migration_target);
+      if (rc != 0) {
+	printf ("ncMigrateInstance() failed: error=%d\n", rc);
+	exit(1);
+      } else {
+	printf ("Instance %s migrated to %s\n", instance_id, migration_target);
+      }
+    /***********************************************************/
+    } else if (!strcmp(command, "describeInstanceUtilization")) {
+      int utilization;
+      CHECK_PARAM(instance_id, "instance ID");
+      int rc = ncDescribeInstanceUtilizationStub (stub, &meta, instance_id, &utilization);
+      if (rc != 0) {
+	printf ("ncDescribeInstanceUtilization() failed: error=%d\n", rc);
+	exit(1);
+      } else {
+	printf ("InstanceUtilization: %d\n", utilization);
+      }
     /***********************************************************/
     } else {
         fprintf (stderr, "ERROR: command %s unknown (try -h)\n", command);

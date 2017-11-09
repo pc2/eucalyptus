@@ -47,13 +47,16 @@ server: $(SERVICE_SO)
 $(SERVICE_SO): generated/stubs ../storage/storage.o server-marshal.o handlers.o $(AXIS2C_HOME)/lib/libaxutil.so
 	$(CC) -shared generated/*.o server-marshal.o handlers.o $(SCLIBS) $(NCLIBS) $(VNLIBS) $(WSSECLIBS) $(CC_LIBS) -o $(SERVICE_SO)
 
-client: $(CLIENT)_full $(CLIENTKILLALL)
+client: $(CLIENT)_full $(CLIENTKILLALL) $(INVOKE)
 
 $(CLIENT)_full: generated/stubs $(CLIENT).c cc-client-marshal-adb.c handlers.o $(AXIS2C_HOME)/lib/libaxutil.so
 	$(CC) -o $(CLIENT)_full $(CFLAGS) $(INCLUDES) $(CC_LIBS) generated/adb_*.o generated/axis2_stub_*.o  ../util/misc.o ../util/euca_auth.o $(CLIENT).c cc-client-marshal-adb.c -DMODE=1
 
 $(CLIENTKILLALL): generated/stubs $(CLIENT).c cc-client-marshal-adb.c handlers.o $(AXIS2C_HOME)/lib/libaxutil.so
 	$(CC) -o $(CLIENTKILLALL) $(CFLAGS) $(INCLUDES) $(CC_LIBS) generated/adb_*.o generated/axis2_stub_*.o  ../util/misc.o ../util/euca_auth.o $(CLIENT).c cc-client-marshal-adb.c -DMODE=0
+
+$(INVOKE): generated/stubs $(INVOKE).c cc-client-marshal-adb.c handlers.o $(AXIS2C_HOME)/lib/libaxutil.so
+	$(CC) -o $(INVOKE) $(CFLAGS) $(INCLUDES) $(CC_LIBS) generated/adb_*.o generated/axis2_stub_*.o ../util/misc.o ../util/euca_auth.o $(INVOKE).c cc-client-marshal-adb.c
 
 deploy:
 	$(INSTALL) -d $(AXIS2C_SERVICES)/$(SERVICE_NAME)/
@@ -81,9 +84,11 @@ distclean: clean
 
 install: deploy
 	@$(INSTALL) -m 0555 $(CLIENTKILLALL) $(sbindir)
+	@$(INSTALL) -m 0555 $(INVOKE) $(sbindir)
 	@$(INSTALL) cc-client-policy.xml $(vardir)/lib/eucalyptus/keys/
 
 uninstall:
 	@$(RM) -f $(sbindir)/$(CLIENTKILLALL)
+	@$(RM) -f $(sbindir)/$(INVOKE)
 	@$(RM) -f $(vardir)/lib/eucalyptus/keys/cc-client-policy.xml
 	@$(RM) -rf $(AXIS2C_SERVICES)/$(SERVICE_NAME)

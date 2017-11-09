@@ -493,6 +493,11 @@ struct handlers kvm_libvirt_handlers = {
     .doStartNetwork      = NULL,
     .doPowerDown         = NULL,
     .doAttachVolume      = doAttachVolume,
-    .doDetachVolume      = doDetachVolume
+    .doDetachVolume      = doDetachVolume,
+    .doDescribeHardware  = NULL,
+    .doDescribeUtilization = NULL,
+    .doMigrateInstance   = NULL,
+    .doAdoptInstances    = NULL,
+    .doDescribeInstanceUtilization = NULL
 };
 

@@ -64,6 +64,8 @@ permission notice:
 #include "eucalyptus.h"
 
 #define CHAR_BUFFER_SIZE 512
+#define MAXDOMS 1024
+#define MAX_CORES_PER_INSTANCE 64
 
 typedef struct ncMetadata_t {
     char *correlationId;
@@ -137,6 +139,33 @@ typedef struct ncResource_t {
     int numberOfCoresAvailable;
     char publicSubnets[CHAR_BUFFER_SIZE];
 } ncResource;
+
+typedef struct ncHardwareInfo_t {
+  char model[CHAR_BUFFER_SIZE];
+  long memory;
+  int cpus;
+  int mhz;
+  int nodes;
+  int sockets;
+  int cores;
+  int threads;
+} ncHardwareInfo;
+
+typedef struct ncInstanceUtilization_t {
+  char instanceId[CHAR_BUFFER_SIZE];
+  int numVcpus;
+  int vcpuUtilization[MAX_CORES_PER_INSTANCE];
+  int vnetworkUtilization;
+} ncInstanceUtilization;
+
+typedef struct ncUtilization_t {
+  /*int numInstances;
+  ncInstanceUtilization instances[MAXDOMS];*/
+  int utilization;
+  int networkUtilization;
+  int powerConsumption;
+  time_t timePoint;
+} ncUtilization;
 
 /* TODO: make this into something smarter than a linked list */
 typedef struct bunchOfInstances_t {

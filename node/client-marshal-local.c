@@ -93,9 +93,15 @@ int ncTerminateInstanceStub (ncStub *st, ncMetadata *meta, char *instanceId, int
 {
     return doTerminateInstance (meta, instanceId, shutdownState, previousState);
 }
+
 int ncPowerDownStub (ncStub *st, ncMetadata *meta){
-  return(0);
+    return(0);
 }
+
+int ncAdoptInstancesStub (ncStub *st, ncMetadata *meta){
+  return doAdoptInstances (meta);
+}
+
 int ncDescribeInstancesStub (ncStub *st, ncMetadata *meta, char **instIds, int instIdsLen, ncInstance ***outInsts, int *outInstsLen)
 {
     return doDescribeInstances (meta, instIds, instIdsLen, outInsts, outInstsLen);
@@ -114,4 +120,24 @@ int ncAttachVolumeStub (ncStub *stub, ncMetadata *meta, char *instanceId, char *
 int ncDetachVolumeStub (ncStub *stub, ncMetadata *meta, char *instanceId, char *volumeId, char *remoteDev, char *localDev, int force)
 {
     return doDetachVolume (meta, instanceId, volumeId, remoteDev, localDev, force);
+}
+
+int ncDescribeHardwareStub (ncStub *st, ncMetadata *meta, ncHardwareInfo *hwinfo)
+{
+    return doDescribeHardware (meta, hwinfo);
+}
+
+int ncDescribeUtilizationStub (ncStub *st, ncMetadata *meta, ncUtilization *utilization)
+{
+    return doDescribeUtilization (meta, utilization);
+}
+
+int ncDescribeInstanceUtilizationStub (ncStub *st, ncMetadata *meta, char *instanceId, int *utilization)
+{
+    return doDescribeInstanceUtilization (meta, instanceId, utilization);
+}
+
+int ncMigrateInstanceStub (ncStub *st, ncMetadata *meta, char *instanceId, char *target)
+{
+    return doMigrateInstance (meta, instanceId, target);
 }

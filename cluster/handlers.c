@@ -68,6 +68,7 @@ permission notice:
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <math.h>
 
 #include "axis2_skel_EucalyptusCC.h"
 
@@ -87,6 +88,8 @@ permission notice:
 int init=0;
 sem_t *initLock=NULL;
 
+ncMetadata *metadata=NULL;
+char *schedUser;
 // to be stored in shared memory
 ccConfig *config=NULL;
 sem_t *configLock=NULL;
@@ -96,6 +99,7 @@ sem_t *instanceCacheLock=NULL;
 
 vnetConfig *vnetconfig=NULL;
 sem_t *vnetConfigLock=NULL;
+
 
 int doAttachVolume(ncMetadata *ccMeta, char *volumeId, char *instanceId, char *remoteDev, char *localDev) {
   int i, j, rc, start, stop, ret=0;
@@ -704,6 +708,459 @@ int doDescribeResources(ncMetadata *ccMeta, virtualMachine **ccvms, int vmLen, i
   return(0);
 }
 
+int doDescribePerformance(ncMetadata *ccMeta, int *totalCpuCores, int *avgMhz) {
+  int i, rc, totalMhz;
+  
+  rc = initialize();
+  if (rc)
+    return (1);
+
+  *totalCpuCores=0;
+  totalMhz=0;
+
+  sem_wait(configLock);
+  for (i=0; i<config->numResources; i++) {
+    resource *res;
+    res = &(config->resourcePool[i]);
+    *totalCpuCores += res->availCores;
+    totalMhz += res->hwinfo.mhz * res->availCores;
+  }
+  sem_post(configLock);
+  *avgMhz = totalMhz/(*totalCpuCores);
+
+  return (0);
+}
+
+int doDescribeUtilization(ncMetadata *ccMeta, int *utilization) {
+  int i, rc;
+
+  rc = initialize();
+  if (rc)
+    return (1);
+
+  *utilization = 0;
+  sem_wait(configLock);
+  for (i=0; i<config->numResources; i++) {
+    resource *res;
+    *utilization += getNodeUtilization(&(config->resourcePool[i]));
+  }
+  *utilization = (*utilization)/config->numResources;
+  sem_post(configLock);
+  return (0);
+}
+
+int getNodeUtilization (resource *res) {
+  int result, j, resUtil=0;
+  logprintfl(EUCADEBUG, "invoked getNodeUtilization()\n");
+  
+  if (config->use_monitoring_history) {
+    for (j=0; j<UTIL_HISTORY_LENGTH; j++) {
+      resUtil += res->utilization[j].utilization;
+    }
+    result = resUtil/ UTIL_HISTORY_LENGTH;
+  } else {
+    result = res->utilization[0].utilization;
+  }
+  return (result);
+}
+
+int doDescribePowerConsumption(ncMetadata *ccMeta, int *powerConsumption) {
+  int i, rc;
+
+  logprintfl(EUCADEBUG, "invoked doDescribePowerConsumption()\n");
+
+  rc = initialize();
+  if (rc)
+    return (1);
+
+  *powerConsumption = 0;
+  sem_wait(configLock);
+  for (i=0; i<config->numResources; i++) {
+    resource *res;
+    int j, resConsumption=0;
+    res = &(config->resourcePool[i]);
+    for (j=0; j<UTIL_HISTORY_LENGTH; j++) {
+      resConsumption += res->utilization[i].powerConsumption;
+    }
+    *powerConsumption += resConsumption / UTIL_HISTORY_LENGTH;
+  }
+  sem_post(configLock);
+
+  logprintfl(EUCADEBUG, "doDescribePowerConsumption() done\n");
+  return (0);
+}
+
+int doDescribePowerIncrease(ncMetadata *ccMeta, int *powerIncrease) {
+  int i, rc;
+  int totalIncrease=0;
+
+  logprintfl(EUCADEBUG, "doDescribePowerIncrease() invoked\n");
+
+  rc = initialize();
+  if (rc)
+    return (1);
+
+  sem_wait(configLock);
+  for (i=0; i<config->numResources; i++) {
+    resource *res;
+    int j;
+    int resIncrease=0;
+    res = &(config->resourcePool[i]);
+    for (j=0; j<UTIL_HISTORY_LENGTH; j++) {
+      resIncrease += res->utilization[i].powerConsumption;
+    }
+    totalIncrease += resIncrease / UTIL_HISTORY_LENGTH;
+  }
+  *powerIncrease = totalIncrease / config->numResources;
+  sem_post(configLock);
+
+  logprintfl(EUCADEBUG, "doDescribePowerIncrease() done\n");
+  return (0);
+}
+
+int doDescribeUsersInstances(ncMetadata *ccMeta, int *numberOfInstances) {
+  int i, rc;
+
+  logprintfl(EUCADEBUG, "doDescribeUsersInstances() invoked\n");
+  
+  rc = initialize();
+  if (rc)
+    return (1);
+
+  *numberOfInstances=0;
+
+  sem_wait(configLock);
+  for (i=0; i<config->numResources; i++) {
+    resource *res;
+    res = &(config->resourcePool[i]);
+    *numberOfInstances += getNumUserInsts(ccMeta->userId, res);
+  }
+  sem_post(configLock);  
+  
+  logprintfl(EUCADEBUG, "doDescribeUsersInstances() done\n");
+  return (0);
+}
+
+ccInstance *selectMigrationInstance(ncMetadata *ccMeta, char *srcNode) {
+  int i, rc, resPos, nodeInsts[MAXINSTANCES], nodeInstsLen=0;
+  ncStub *ncs;
+  logprintfl(EUCADEBUG, "invoked selectMigrationInstance()\n");
+
+  if (instanceCache[0].instanceId[0] == '\0' | instanceCache[0].instanceId[1] == '\0')
+    {
+      logprintfl(EUCADEBUG, "Can't find instance for migration: no running instances\n");
+      return (NULL);
+    }
+
+  for (i=0; i<MAXINSTANCES; i++)
+    nodeInsts[i]=0;
+
+  /* look for srcNode position */
+  for (i=0; i<config->numResources; i++) {
+    if (strcmp(config->resourcePool[i].ncURL, srcNode)==0) {
+      resPos = i;
+      break;
+    }
+  }
+
+  logprintfl(EUCADEBUG, "selectMigrationInstance(): looking on host %s\n", config->resourcePool[resPos].hostname);
+
+  sem_wait(instanceCacheLock);
+
+  /* list all instances on host */
+  for (i=0; i<MAXINSTANCES; i++) {
+    if (instanceCache[i].instanceId[0] != '\0' && instanceCache[i].ncHostIdx == resPos){
+      updateInstanceUtilization (&(instanceCache[i]), ccMeta, OP_TIMEOUT);
+      nodeInsts[nodeInstsLen] = i;
+      nodeInstsLen++;
+    }
+  }
+
+  if (nodeInstsLen == 0) {
+    logprintfl(EUCAERROR, "no instances on migration source found\n");
+    sem_post(instanceCacheLock);
+    return (NULL);
+  }
+  qsort (nodeInsts, nodeInstsLen, sizeof(int), cmp_instances);
+  sem_post(instanceCacheLock);
+  
+  logprintfl(EUCADEBUG, "selectMigrationInstance() done, selected %s for migration\n", instanceCache[nodeInsts[0]].instanceId);
+  return (&(instanceCache[nodeInsts[0]]));
+}
+
+int hasRunningInstances() {
+  int i;
+  logprintfl(EUCADEBUG, "invoked hasRunningInstances()\n");
+  for (i=0; i<config->numResources; i++) {
+    if (getCoreUtilization(&(config->resourcePool[i])))
+      return (1);
+  }
+  return (0);
+}
+
+int cmp_instances (const void *inst1, const void *inst2) {
+  int load=0, locality=0, result;
+  ccInstance *instance1, *instance2;
+
+  logprintfl(EUCADEBUG, "invoked cmp_instances()\n");
+
+  instance1 = &(instanceCache[*((int*) inst1)]);
+  instance2 = &(instanceCache[*((int*) inst2)]);
+
+  if (getInstanceUtilization(instance2)>getInstanceUtilization(instance1))
+    load = 1;
+  else if (getInstanceUtilization(instance2)<getInstanceUtilization(instance1))
+    load = -1;
+  else
+    load = 0;
+
+  if (getUserInstsOnHost(instance2)>getUserInstsOnHost(instance1))
+    locality = 1;
+  else if (getUserInstsOnHost(instance2)<getUserInstsOnHost(instance1))
+    locality = -1;
+  else
+    locality = 0;
+
+  /* I assume, that a high load instance involves high energy consumption */
+  result = load*config->policy_performance_weight + load*config->policy_energyefficiency_weight + locality*config->policy_locality_weight;
+  return (result);
+}
+
+int getInstanceUtilization (ccInstance *instance) {
+  int i, sum = 0;
+  
+  for (i=0; i<INST_UTIL_HISTORY_LENGTH; i++)
+    sum += instance->utilization[i];
+  
+  return (sum / INST_UTIL_HISTORY_LENGTH);
+}
+
+int getUserInstsOnHost (ccInstance *instance) {
+  int i, result=0;
+
+ for (i=0; i<MAXINSTANCES; i++) {
+    if (instanceCache[i].instanceId[0] != '\0' && 
+	instanceCache[i].ncHostIdx == instance->ncHostIdx &&
+	strcmp(instanceCache[i].ownerId, instance->ownerId)==0)
+      result++;
+  }
+
+  return (result);
+}
+
+int doChangeSchedulingPolicy(ncMetadata *ccMeta, char *policy, int performanceWeight, int localityWeight, int energyWeight) {
+  int schedPolicy;
+  logprintfl(EUCADEBUG, "doChangeSchedulingPolicy() invoked\n");
+
+  if (!strcmp(policy, "GREEDY")) 
+    schedPolicy = SCHEDGREEDY;
+  else if (!strcmp(policy, "ROUNDROBIN")) 
+    schedPolicy = SCHEDROUNDROBIN;
+  else if (!strcmp(policy, "POWERSAVE")) 
+    schedPolicy = SCHEDPOWERSAVE;
+  else if (!strcmp(policy, "POLICYBASED")) 
+    schedPolicy = SCHEDPOLICYBASED;
+  else {
+    logprintfl(EUCAERROR, "unknown scheduling policy: %s, using old scheduler\n");
+    return (1);
+  }
+
+  sem_wait(configLock);
+  config->schedPolicy = schedPolicy;
+  logprintfl(EUCAINFO, "scheduling policy changed to %s\n", policy);
+  
+  if (schedPolicy == SCHEDPOLICYBASED) {
+    config->policy_performance_weight = performanceWeight;
+    config->policy_locality_weight = localityWeight;
+    config->policy_energyefficiency_weight = energyWeight;
+    logprintfl(EUCAINFO, "policy weights:\n\tperformance: %d\n\tlocality: %d\n\tenergy: %d\n", performanceWeight, localityWeight, energyWeight);
+  }
+  sem_post(configLock);
+
+  if (config->migration_events & CHANGE_POLICY_EVT) {
+    int pid;
+    
+    pid = fork();
+    if (pid == 0) {
+      exit(doMigrateInstances(ccMeta, NULL, NULL));
+    }
+  }
+
+  return (0);
+}
+
+int performMigration(ncMetadata *ccMeta, char *src, char *dst) {
+  char *srcNode, *dstNode;
+  ncStub *ncs;
+  int rc, srcPos, resIds[MAXNODES], resId;
+  virtualMachine *vm;
+  ccInstance *inst=NULL;
+
+  sleep(10); /* wait for other operations */
+  logprintfl(EUCAINFO, "performMigration() called\n");
+  
+  if (instanceCache[0].instanceId[0] == '\0' | instanceCache[0].instanceId[1] == '\0')
+    {
+      logprintfl(EUCADEBUG, "Can't find instance for migration: no running instances\n");
+      return (1);
+    }
+
+  sem_wait(configLock);
+  if (config->schedPolicy != SCHEDPOLICYBASED) {
+    logprintfl(EUCAERROR,"Instance migration only possible using policy based scheduler\n");
+    sem_post(configLock);
+    return (-1);
+  } else
+    logprintfl(EUCADEBUG, "Useing policy based scheduler for migration\n");
+  
+  if (src != NULL && dst != NULL && strcmp(src, dst) == 0) {
+    logprintfl(EUCADEBUG, "Source and destination nodes are equal, no migration!\n");
+    logprintfl(EUCADEBUG, "performMigration() done\n");
+    sem_post(configLock);
+    return (1);
+  }  
+
+  /* select source node */
+  if (src == NULL || strcmp("", src)) {
+    /* Sort nodes using policy weight. */ 
+    if (config->policy_performance_weight != 0 ||
+	config->policy_energyefficiency_weight != 0 ||
+	config->policy_locality_weight != 0) {
+      int i;
+      logprintfl(EUCADEBUG, "sorting resources\n");
+      
+      for (i=0; i<config->numResources; i++)
+	resIds[i] = i;
+      
+      schedUser = "";
+      qsort (resIds, config->numResources, sizeof(int), cmp_nodes);
+      logprintfl(EUCADEBUG, "qsort done\n");
+    } else {
+      logprintfl(EUCAINFO, "No policy weights, stopping migration\n");
+      sem_post(configLock);
+      return (-1);
+    }
+    
+    /* select resourcePool element for migration source */
+    for (srcPos=config->numResources-1; srcPos>=0; srcPos--){
+      int coreUtil = getCoreUtilization(&(config->resourcePool[resIds[srcPos]]));
+      if (coreUtil > 0)  {
+	logprintfl(EUCADEBUG, "Selected %s as migration source\n", config->resourcePool[resIds[srcPos]].hostname);
+	logprintfl(EUCADEBUG, "Host has %d percent of available vcores in use\n", coreUtil);
+	break; /* select last non empty host */
+      }
+    }
+
+    if (srcPos == 0) {
+      sem_post(configLock);
+      logprintfl(EUCADEBUG, "No further migration possible\n");
+      return (1);
+    }
+
+    srcNode = config->resourcePool[resIds[srcPos]].ncURL;
+  }
+  else {
+    srcNode = src;
+  }
+  
+  /* select instance */
+  inst = selectMigrationInstance(ccMeta, srcNode);
+
+  if (inst == NULL) {
+    logprintfl(EUCAINFO, "No instance for migration found, abort migration\n");
+    logprintfl(EUCADEBUG, "performMigration() done\n");
+    sem_post(configLock);
+    return (1);
+  }
+  schedUser = inst->ownerId;
+
+  /* select destination node */
+  if (dst == NULL) {
+    vm = &(inst->ccvm);
+    if (schedule_instance(vm, NULL, &resId)) {
+      /* this case should not happen */
+      logprintfl(EUCAERROR, "Instance can't be scheduled, abort migration\n");
+      logprintfl(EUCADEBUG, "performMigration() done\n");
+      sem_post(configLock);
+      return (1);
+    }
+    else if (cmp_nodes(&resId, &srcPos)<0)
+      dstNode = config->resourcePool[resId].ip;
+    else {
+      logprintfl(EUCADEBUG, "Cannot migrate further instances\n");
+      logprintfl(EUCADEBUG, "performMigration() done\n");
+      sem_post(configLock);
+      return (1); /* no advancement in migration to selected host */
+    }
+  }
+  else {
+    dstNode = dst;
+  }
+  logprintfl(EUCADEBUG, "Selected %s for migration target\n", dstNode);
+
+  ncs = ncStubCreate(srcNode, NULL, NULL);
+  if (config->use_wssec) {
+    rc = InitWSSEC(ncs->env, ncs->stub, config->policyFile);
+  }
+
+  logprintfl(EUCAINFO, "migrating %s to %s\n", inst->instanceId, dstNode);
+  if (ncMigrateInstanceStub(ncs, ccMeta, inst->instanceId, dstNode)) {
+    logprintfl(EUCAERROR, "instance %s can't migrated from %s to host %s\n", srcNode, inst->instanceId, dstNode);
+    sem_post(configLock);
+    return (-1);
+  } else {
+    int oldHost = inst->ncHostIdx;
+    /* updated instances */
+    sem_wait(instanceCacheLock);
+    ncAdoptInstancesStub(ncs, ccMeta);
+    inst->ncHostIdx = resId;
+    refresh_instanceCache(inst->instanceId, inst);
+    sem_post(instanceCacheLock);
+
+    /* update hosts */
+    config->resourcePool[oldHost].availMemory += vm->mem;
+    config->resourcePool[oldHost].availDisk += vm->disk;
+    config->resourcePool[oldHost].availCores += vm->cores;
+
+    config->resourcePool[resId].availMemory -= vm->mem;
+    config->resourcePool[resId].availDisk -= vm->disk;
+    config->resourcePool[resId].availCores -= vm->cores;
+  }
+  sem_post(configLock);
+  return (0);
+}
+
+int doMigrateInstances(ncMetadata *ccMeta, char *src, char *dst) {
+  int err=0, migrations=0, maxMigrate;
+
+  sem_wait(configLock);
+  maxMigrate = config->max_migrate;
+  
+  if (!hasRunningInstances()) {
+    sem_post(configLock);
+    logprintfl(EUCADEBUG, "no running instances\n");
+    return (0);
+  }
+  sem_post(configLock);
+
+  if ((src!=NULL && strcmp(src, "")) || (dst!=NULL && strcmp(dst, "")))
+    performMigration(ccMeta, src, dst);
+
+  while (err==0 && maxMigrate>0?migrations<=maxMigrate:1) {
+    err = performMigration(ccMeta, NULL, NULL);
+    if (err == -1) {
+      logprintfl(EUCAERROR, "can't migrate instance\n");
+      break;
+    }
+    if (err == 1) {
+      break;
+    }
+    migrations++;
+  }
+  logprintfl(EUCADEBUG, "doMigrateInstances() done\n");
+  return (0);
+}
+
 int changeState(resource *in, int newstate) {
   if (in == NULL) return(1);
   if (in->state == newstate) return(0);
@@ -822,8 +1279,14 @@ int refresh_resources(ncMetadata *ccMeta, int timeout) {
       }
     }
   }
+
+  if (config->schedPolicy == SCHEDPOLICYBASED) {
+    updateHardwareInfo(ccMeta);
+    updateMonitoringData(ccMeta);
+  }
+
   sem_post(configLock);
-  
+
   logprintfl(EUCADEBUG,"refresh_resources(): done\n");
   return(0);
 }
@@ -1158,8 +1621,657 @@ int schedule_instance(virtualMachine *vm, char *targetNode, int *outresid) {
     return(schedule_instance_roundrobin(vm, outresid));
   } else if (config->schedPolicy == SCHEDPOWERSAVE) {
     return(schedule_instance_greedy(vm, outresid));
+  } else if (config->schedPolicy == SCHEDPOLICYBASED) {
+    return(schedule_instance_policy_based(vm, outresid));
+  } else if (config->schedPolicy == MINCOREUSAGE) {
+    return(schedule_instance_mincoreusage (vm, outresid));
   }
   return(schedule_instance_greedy(vm, outresid));
+}
+
+void updateMonitoringData (ncMetadata *ccMeta) {
+  int i;
+  time_t op_start, op_timer;
+
+  op_start = time(NULL);
+  op_timer = OP_TIMEOUT;
+
+  logprintfl(EUCADEBUG, "invoked updateMonitoringData()\n");
+
+  for (i=0; i<config->numResources; i++) {
+    ncStub *ncs;
+    int pid, filedes[2], status, rc;
+    ncUtilization utilization;
+    
+    rc = pipe(filedes);
+    pid = fork();
+    if (pid == 0) {
+      int ret;
+      close(filedes[0]);
+      ncs = ncStubCreate (config->resourcePool[i].ncURL, NULL, NULL);
+      if (config->use_wssec) {
+	rc = InitWSSEC(ncs->env, ncs->stub, config->policyFile);
+      }
+      rc = ncDescribeUtilizationStub (ncs, ccMeta, &utilization);
+
+      if(!rc) {
+	rc = write(filedes[1], &utilization, sizeof(ncUtilization));
+	ret = 0;
+      }
+      else
+	ret = 1;
+      close(filedes[1]);
+      exit (ret);
+    } else {
+      close(filedes[1]);
+      bzero(&utilization, sizeof(ncUtilization));
+      op_timer = OP_TIMEOUT - (time(NULL) - op_start);
+      
+      rc = timeread(filedes[0], &utilization, sizeof(ncUtilization), minint(op_timer / (config->numResources - i), OP_TIMEOUT_PERNODE));
+      close (filedes[0]);
+      if (rc<=0) {
+	// timeout or read went badly
+	kill(pid, SIGKILL);
+	wait(&status);
+	logprintfl(EUCAERROR, "updating utilization for node %s failed\n", config->resourcePool[i].hostname);
+	return;
+      } else {
+	wait(&status);
+	rc = WEXITSTATUS(status);
+	if (config->use_monitoring_history) {
+	  metadata = ccMeta;
+	  update_resource_utilization (config->resourcePool[i].utilization, utilization);
+	}
+	else
+	  config->resourcePool[i].utilization[0] = utilization;
+	if (config->resourcePool[i].powerConsumption[utilization.utilization] == 0) {
+	  config->resourcePool[i].powerConsumption[utilization.utilization] = utilization.powerConsumption;
+	}
+	else {
+	  /* calculate average powerConsumtion of measured values measured */
+	  config->resourcePool[i].powerConsumption[utilization.utilization] = 
+	    (config->resourcePool[i].powerConsumption[utilization.utilization]+utilization.powerConsumption)/2;
+	}
+      }
+    }
+  }
+  
+  logprintfl(EUCADEBUG, "updateMonitoringData() finished\n");
+}
+
+void updateInstanceUtilization (ccInstance *instance, ncMetadata *ccMeta, int timeout) {
+  logprintfl(EUCADEBUG, "invoked updateInstanceUtilization() on instance %s\n", instance->instanceId);
+  ncStub *ncs;
+  int utilization, pid, filedes[2], status, rc;
+  time_t op_start, op_timer;
+
+  if (timeout <= 0) timeout = 1;
+
+  op_start = time(NULL);
+  op_timer = timeout;
+  
+  pid = fork();
+  if (pid == 0) {
+    int ret;
+    
+    close(filedes[0]);
+    ncs = ncStubCreate (config->resourcePool[instance->ncHostIdx].ncURL, NULL, NULL);
+    if (config->use_wssec) {
+      rc = InitWSSEC(ncs->env, ncs->stub, config->policyFile);
+    }
+    rc = ncDescribeInstanceUtilizationStub (ncs, ccMeta, instance->instanceId, &utilization);
+    if(!rc) {
+      rc = write(filedes[1], &utilization, sizeof(int));
+      ret = 0;
+    } else
+      ret = 1;
+    close(filedes[1]);
+    exit (ret);
+  } else {
+    close(filedes[1]);
+    bzero(&utilization, sizeof(int));
+    op_timer = OP_TIMEOUT - (time(NULL) - op_start);
+    
+    rc = timeread(filedes[0], &utilization, sizeof(int), minint(op_timer, OP_TIMEOUT_PERNODE));
+    close (filedes[0]);
+    if (rc<=0) {
+      // timeout or read went badly
+      kill(pid, SIGKILL);
+      wait(&status);
+      logprintfl(EUCAERROR, "updating instance utilization for instance %s failed\n", instance->instanceId);
+      return;
+    } else {
+      wait(&status);
+      rc = WEXITSTATUS(status);
+      if (config->use_monitoring_history)
+	update_instance_utilization (instance->utilization, utilization);
+      else
+	instance->utilization[0] = utilization;
+    }
+  } 
+}
+
+void updateHardwareInfo (ncMetadata *ccMeta) {
+  int i, rc;
+  time_t op_start, op_timer;
+
+  op_start = time(NULL);
+  op_timer = OP_TIMEOUT;
+  
+  logprintfl(EUCADEBUG, "invoked updateHardwareInfo()\n");
+
+  for (i=0; i<config->numResources; i++) {
+    ncStub *ncs;
+    int pid, filedes[2], status;
+    ncHardwareInfo hwinfo;
+    
+    rc = pipe (filedes);
+    pid = fork();
+    if (pid == 0) {
+      int ret;
+      close(filedes[0]);
+      ncs = ncStubCreate (config->resourcePool[i].ncURL, NULL, NULL);
+      if (config->use_wssec) {
+	rc = InitWSSEC(ncs->env, ncs->stub, config->policyFile);
+      }
+      rc = ncDescribeHardwareStub (ncs, ccMeta, &hwinfo);
+      if (!rc) {
+	rc = write(filedes[1], &hwinfo, sizeof(ncHardwareInfo));
+	ret = 0;
+      }
+      else
+	ret = 1;
+      close(filedes[1]);
+      exit (ret);
+    } else {
+      bzero(&hwinfo, sizeof(ncHardwareInfo));
+      op_timer = OP_TIMEOUT - (time(NULL) - op_start);
+      rc = timeread (filedes[0], &hwinfo, sizeof(ncHardwareInfo), minint(op_timer / (config->numResources -i), OP_TIMEOUT_PERNODE));
+      close(filedes[0]);
+      if (rc<=0) {
+	kill(pid, SIGKILL);
+	wait(&status);
+	rc = 1;
+      } else {
+	wait(&status);
+	rc = WEXITSTATUS(status);
+	
+	config->resourcePool[i].hwinfo = hwinfo;
+      }
+    }
+  }
+
+  logprintfl(EUCADEBUG, "updateHardwareInfo() done\n");
+}
+
+void update_resource_utilization (ncUtilization *resUtil, ncUtilization util){
+  int i;
+  
+  logprintfl(EUCADEBUG, "invoked update_resource_utilization()\n");
+  
+  for (i=UTIL_HISTORY_LENGTH-1; i>0; i--) {
+    resUtil[i] = resUtil[i-1];
+  }
+  resUtil[0] = util;
+
+  if (config->migration_events & UTIL_VAR_EVT) {
+    if (utilizationChange (resUtil)) {
+      int pid;
+      pid = fork();
+      if (pid == 0) {
+	exit(doMigrateInstances(metadata, NULL, NULL));
+      }
+    }
+  }
+}
+
+int utilizationChange (ncUtilization *utilization) {
+  double variance=0.0;
+  double average=0.0;
+  double upperBound, lowerBound;
+  int i;
+
+  /* calculate average */
+  for (i=0; i<UTIL_HISTORY_LENGTH; i++)
+    average += (double) utilization[i].utilization;
+  average = average / (double) UTIL_HISTORY_LENGTH;
+
+  /* calculate variance */
+  for (i=0; i<UTIL_HISTORY_LENGTH; i++)
+    variance += ((double)utilization[i].utilization - average)*((double)utilization[i].utilization - average);
+  variance = variance / (double)(UTIL_HISTORY_LENGTH-1);
+  
+  /* calculate confidence interval */
+  lowerBound = average - QUANTILE * (sqrt(variance)/sqrt((double)UTIL_HISTORY_LENGTH));
+  upperBound = average + QUANTILE * (sqrt(variance)/sqrt((double)UTIL_HISTORY_LENGTH));
+
+  if ((double)utilization[0].utilization < lowerBound ||
+      (double)utilization[0].utilization > upperBound)
+    return (1);
+  else
+    return (0);
+}
+
+void update_instance_utilization (int *instUtil, int util) {
+  int i;
+
+  logprintfl(EUCADEBUG, "invoked update_instance_utilization()\n");
+
+  for (i=INST_UTIL_HISTORY_LENGTH-1; i>0; i--) {
+    instUtil[i] = instUtil[i-1];
+  }
+  instUtil[0] = util;
+}
+
+int cmp_performance_factor (resource *node1, resource *node2) {
+  int nodeUtil1, nodeUtil2;
+
+  logprintfl(EUCADEBUG, "invoked cmp_performance_factor()\n");
+  nodeUtil1 = getUtilization (node1);
+  nodeUtil2 = getUtilization (node2);
+  
+  if (nodeUtil1 > nodeUtil2+config->utilization_tolerance)
+    return (1);
+  else if (nodeUtil2 > nodeUtil1+config->utilization_tolerance)
+    return (-1);
+  else
+    /* Compare hardware, if utilization nearly identical. 
+       "Nearly" means in this case, that the utilization 
+       is identical, except for TOLERANCE_FACTOR */
+    return (cmp_hardware (node1, node2)); 
+}
+
+int cmp_energy_factor (resource *node1, resource *node2) {
+  logprintfl(EUCADEBUG, "invoked cmp_energy_factor()\n");
+  if (getPowerIncrease (node1) == 0 || getPowerIncrease (node2) == 0) {
+    /* only static energy data or no collected data: 
+       use economical nodes first and try to utilize them as much as possible*/
+    if (getPowerConsumption(node1) != getPowerConsumption(node2)) 
+      return (getPowerConsumption(node1)>getPowerConsumption(node2)?1:-1);
+    else 
+      if (getCoreUtilization(node1) != getCoreUtilization(node2))
+	if (getCoreUtilization(node2) > getCoreUtilization(node1))
+	  return (1);
+	else
+	  return (-1);
+      else
+	return (cmp_hardware (node1, node2));
+  }
+  else if (getPowerIncrease (node1) != 0)
+    return 1;
+  else if (getPowerIncrease (node2) != 0)
+    return -1;
+  else {
+    /* "real" power consumption sensor available: compare growth of consumption at curren utilization level,
+       if they're equal, compare total power consumption*/
+    if (getPowerIncrease(node1) == getPowerIncrease(node2))
+      return (getPowerConsumption(node1)>getPowerConsumption(node2)?1:-1);
+    else {
+      if (getPowerIncrease(node1) > getPowerIncrease(node2))
+	return (1);
+      else if (getPowerIncrease(node1) < getPowerIncrease(node2))
+	return (-1);
+      else {
+	if (getCoreUtilization(node1) != getCoreUtilization(node2))
+	  if (getCoreUtilization(node2) > getCoreUtilization(node1))
+	    return (1);
+	  else
+	    return (-1);
+	else
+	  return (cmp_hardware (node1, node2));	
+      }
+    }
+  }
+}
+
+
+
+double getAvgInstsPerUser (resource *res) {
+  int numUsers=0, hostId=0, i, j;
+  char *users[MAXINSTANCES];
+  logprintfl(EUCADEBUG, "invoked getAvgInstsPerUser()\n");
+  for (i=0; i<config->numResources; i++) {
+    if (&(config->resourcePool[i]) == res) {
+      hostId = i;
+      break;
+    }
+  }
+
+  for (i=0; i<MAXINSTANCES; i++) {
+    if (instanceCache[i].instanceId[0] != '\0' && 
+	instanceCache[i].ncHostIdx == hostId) {
+      int knownUser = 0;
+      for (j=0; j<numUsers; j++) {
+	if (strcmp(users[j], instanceCache[i].ownerId) == 0) {
+	  knownUser = 1;
+	  break;
+	}
+      }
+      if (!knownUser) {
+	numUsers++;
+	users[numUsers] = instanceCache[i].ownerId;
+      }
+    }
+  }
+  logprintfl(EUCADEBUG, "getAvgInstsPerUser() done\n");
+  return ((double) getTotalInsts(res) / (double) numUsers);
+}
+
+int cmp_locality_factor (resource *node1, resource *node2) {
+  int netUtil1, netUtil2, insts1, insts2;
+  logprintfl(EUCADEBUG, "invoked cmp_locality_factor()\n");
+
+  netUtil1 = getNetworkUtilization(node1);
+  netUtil2 = getNetworkUtilization(node2);
+  if (strcmp(schedUser, "") == 0) {
+    if (netUtil2 > netUtil1-config->network_utilization_tolerance)
+      return (-1);
+    else if (netUtil2 < netUtil1-config->network_utilization_tolerance)
+      return (1);
+    else
+      return (0);
+  }
+
+  insts1 = getNumUserInsts(schedUser, node1);
+  insts2 = getNumUserInsts(schedUser, node2);
+  if (insts2 > insts1)
+    return (1);
+  else if (insts2 < insts1)
+    return (-1);
+  else
+    if (netUtil2 > netUtil1-config->network_utilization_tolerance)
+      return (-1);
+    else if (netUtil2 < netUtil1-config->network_utilization_tolerance)
+      return (1);
+    else
+      return (0);
+}
+
+int getPowerIncrease (resource *res) {
+  int i, powerConsumption=0, utilization, expUtilIncrease, powerConsumptionId, expPowerConsumptionId, realSensor=0;
+  logprintfl(EUCADEBUG, "invoked getPowerIncrease()\n");
+
+  /* no "real" sensor */
+  if (getPowerConsumption (res) == 0)
+    return (0);
+
+  for (i=0; i<101; i++) {
+    if (powerConsumption == 0 && res->powerConsumption[i] != 0) {
+      powerConsumption = res->powerConsumption[i];
+      continue;
+    }
+
+    if (powerConsumption != 0 && res->powerConsumption[i] != 0 && res->powerConsumption[i] != powerConsumption) {
+      realSensor = 1;
+      break;
+    }
+  }
+
+  if (realSensor == 0)
+    return (0);
+
+  utilization = getNodeUtilization (res);
+  expUtilIncrease = utilization/getTotalInsts(res);
+
+  i=0;
+  while(1) {
+    if (utilization-i>=0 && res->powerConsumption[utilization-i]!=0) {
+      powerConsumptionId = utilization-i;
+      break;
+    } else if (utilization+i<=100 && res->powerConsumption[utilization+i]!=0) {
+      powerConsumptionId = i+utilization;
+      break;
+    } else if (utilization+i > utilization+expUtilIncrease || i>=100)
+	return (0);
+    else
+      i++;
+  }
+  
+  i=0;
+  while(1) {
+    if (utilization+expUtilIncrease-i>=0 && res->powerConsumption[utilization+expUtilIncrease-i]!=0) {
+      expPowerConsumptionId = utilization+expUtilIncrease-i;
+      break;
+    } else if (utilization+i<=100 && res->powerConsumption[utilization+expUtilIncrease+i]!=0) {
+      expPowerConsumptionId = i+utilization+expUtilIncrease;
+      break;
+    } else if (utilization+expUtilIncrease-i <= powerConsumptionId || i>=100)
+      return (0);
+    else
+      i++;
+  }
+
+  return (res->powerConsumption[expPowerConsumptionId]-res->powerConsumption[powerConsumptionId]);
+}
+
+int getPowerConsumption (resource *res) {
+  int i=0, powerConsumption=0, result;
+  logprintfl(EUCADEBUG, "invoked getPowerConsumption() on %s\n", res->hostname);
+
+  if (config->use_monitoring_history) {
+    for (i=0; i<UTIL_HISTORY_LENGTH; i++) {
+      powerConsumption += res->utilization[i].powerConsumption;
+    }
+    result = powerConsumption / UTIL_HISTORY_LENGTH;
+  } else {
+    result = res->utilization[0].powerConsumption;
+  }
+
+  logprintfl(EUCADEBUG, "getPowerConsumption() done\n");
+  return (result);
+}
+
+int getTotalInsts (resource *res) {
+  int resPos, i, result=0;
+  logprintfl(EUCADEBUG, "invoked getTotalInsts()\n");
+  
+  for (i=0; i<config->numResources; i++) {
+    if (&(config->resourcePool[i]) == res) {
+      resPos = i;
+      break;
+    }
+  }
+
+  sem_wait(instanceCacheLock);
+  for (i=0; i<MAXINSTANCES; i++) {
+    //if (instanceCache[i].ncHostIdx == resPos && strcmp(instanceCache[i].state, "Running") == 0) {
+    if (instanceCache[i].ncHostIdx == resPos) {
+      result++;
+    }
+  }
+  sem_post(instanceCacheLock);
+  logprintfl(EUCADEBUG, "getTotalInsts() done, result: %d instances on host %s\n", result, res->hostname);
+  return (result);
+}
+
+int getCoreUtilization (resource *res) {
+  /* calculate percental core utilization */
+  return (100 - (res->availCores * 100)/res->maxCores);
+}
+
+int getNumUserInsts (char *user, resource *res)
+{
+  int resPos, i, result=0;
+  logprintfl(EUCADEBUG, "invoked getNumUserInsts()\n");
+
+  for (i=0; i<config->numResources; i++) {
+    if (strcmp(config->resourcePool[i].hostname, res->hostname)==0) {
+      resPos = i;
+      break;
+    }
+  }
+  sem_wait(instanceCacheLock);
+  for (i=0; i<MAXINSTANCES; i++) {
+    if (instanceCache[i].instanceId[0] != '\0' &&
+	instanceCache[i].ncHostIdx == resPos && 
+	strcmp(instanceCache[i].ownerId, user)==0)/* && 
+	strcmp(instanceCache[i].state, "Running") == 0)*/{
+      result++;
+    }
+  }
+  sem_post(instanceCacheLock);
+  logprintfl(EUCADEBUG, "user %s has %d instances on host %s\n", user, result, res->hostname);
+  return (result); 
+}
+
+int getNetworkUtilization (resource *res) {
+  int result, i=0, utilization=0;
+
+  logprintfl(EUCADEBUG, "invoked getNetworkUtilization()\n");
+
+  if (config->use_monitoring_history) {
+    for (i=0; i<UTIL_HISTORY_LENGTH; i++) {
+      utilization += res->utilization[i].networkUtilization;
+    }
+    result = utilization / UTIL_HISTORY_LENGTH;
+  } else {
+    result = res->utilization[0].networkUtilization;
+  }
+
+  return (result);
+}
+
+int cmp_hardware (resource *node1, resource *node2) {
+  logprintfl(EUCADEBUG, "invoked cmp_hardware()\n");
+  if (node1->hwinfo.sockets*node1->hwinfo.cores != node2->hwinfo.sockets*node2->hwinfo.cores){
+    if (node2->hwinfo.sockets*node2->hwinfo.cores > node1->hwinfo.sockets*node1->hwinfo.cores)
+      return (1);
+    else 
+      return (-1);
+  }
+  else
+    if (node1->hwinfo.threads != node2->hwinfo.threads){
+      if (node2->hwinfo.threads > node1->hwinfo.threads)
+	return (1);
+      else
+	return (-1);
+    }
+    else {
+      if (node1->hwinfo.memory != node2->hwinfo.memory){
+	if (node2->hwinfo.memory > node1->hwinfo.memory)
+	  return (1);
+	else
+	    return (-1);
+      }
+      else
+	if (node1->hwinfo.mhz != node2->hwinfo.mhz){
+	  if (node2->hwinfo.mhz > node1->hwinfo.mhz)
+	    return (1);
+	  else
+	    return (-1);
+	}
+	else
+	  return (0);
+    }
+}
+
+
+int getUtilization (resource *node) {
+  /* calculate average utilization over complete history */
+  int result=0;
+  int i;
+  
+  logprintfl(EUCADEBUG, "invoked getUtilization()\n");
+  
+  if (config->use_monitoring_history) {
+    for (i=0; i<UTIL_HISTORY_LENGTH; i++)
+      result += node->utilization[i].utilization;
+    result = result / UTIL_HISTORY_LENGTH;
+  } else {
+    result = node->utilization[0].utilization;
+  }
+  
+  logprintfl(EUCADEBUG, "utilization of node %s is %d\n", node->hostname, result);
+  return (result);
+}
+
+int cmp_nodes (const void *nodeId1, const void *nodeId2) {
+  resource *node1, *node2;
+  logprintfl(EUCADEBUG, "invoked cmp_nodes()\n");
+
+  node1 = &(config->resourcePool[*(int*) nodeId1]);
+  node2 = &(config->resourcePool[*(int*) nodeId2]);
+
+  /* calculate policy weight */
+  int result = (config->policy_performance_weight!=0?cmp_performance_factor((resource*) node1, (resource*) node2)*config->policy_performance_weight:0) +
+    (config->policy_energyefficiency_weight!=0?cmp_energy_factor((resource*) node1, (resource*) node2)*config->policy_energyefficiency_weight:0) +
+    (config->policy_locality_weight!=0?cmp_locality_factor((resource*) node1, (resource*) node2)*config->policy_locality_weight:0);
+  
+  logprintfl(EUCADEBUG, "finished cmp_nodes()\n");
+  if (result > 0)
+    return (1);
+  else if (result < 0)
+    return (-1);
+  else
+    return (0);
+}
+
+int schedule_instance_policy_based(virtualMachine *vm, int *outresid) {  
+  int i, rc, done, resid, sleepresid;
+  resource *res;
+  int resIds[MAXNODES];
+
+  *outresid = 0;
+
+  logprintfl(EUCAINFO, "using  policy based scheduler to find next resource\n");
+  
+  /* Sort nodes using policy weight. Use greedy strategy, if no weights are defined. */ 
+  if (config->policy_performance_weight != 0 ||
+      config->policy_energyefficiency_weight != 0 ||
+      config->policy_locality_weight != 0) {
+    logprintfl(EUCADEBUG, "sorting resources\n");
+
+    for (i=0; i<config->numResources; i++)
+      resIds[i] = i;
+
+    qsort (resIds, config->numResources, sizeof(int), cmp_nodes);
+    logprintfl(EUCADEBUG, "sorting resources done\n");
+  }
+  // find the 'best' resource to run the instance on
+  resid = sleepresid = -1;
+  done=0;
+  for (i=0; i<config->numResources && !done; i++) {
+    int mem, disk, cores;
+    
+    // new fashion way
+    res = &(config->resourcePool[resIds[i]]);
+    if ((res->state == RESUP || res->state == RESWAKING) && resid == -1) {
+      mem = res->availMemory - vm->mem;
+      disk = res->availDisk - vm->disk;
+      cores = res->availCores - vm->cores;
+      
+      if (mem >= 0 && disk >= 0 && cores >= 0) {
+	resid = resIds[i];
+	done++;
+      }
+    } else if (res->state == RESASLEEP && sleepresid == -1) {
+      mem = res->availMemory - vm->mem;
+      disk = res->availDisk - vm->disk;
+      cores = res->availCores - vm->cores;
+      
+      if (mem >= 0 && disk >= 0 && cores >= 0) {
+	sleepresid = resIds[i];
+      }
+    }
+  }
+  
+  if (resid == -1 && sleepresid == -1) {
+    // didn't find a resource
+    return(1);
+  }
+  
+  if (resid != -1) {
+    res = &(config->resourcePool[resid]);
+    *outresid = resid;
+  } else if (sleepresid != -1) {
+    res = &(config->resourcePool[sleepresid]);
+    *outresid = sleepresid;
+  }
+  if (res->state == RESASLEEP) {
+    rc = powerUp(res);
+  }
+
+  return(0);
 }
 
 int schedule_instance_roundrobin(virtualMachine *vm, int *outresid) {
@@ -1268,6 +2380,81 @@ int schedule_instance_explicit(virtualMachine *vm, char *targetNode, int *outres
 
   return(0);
 }
+
+int cmp_coreusage (const void *nodeId1, const void *nodeId2) {
+  resource *node1, *node2;
+  logprintfl(EUCADEBUG, "invoked cmp_nodes()\n");
+
+  node1 = &(config->resourcePool[*(int*) nodeId1]);
+  node2 = &(config->resourcePool[*(int*) nodeId2]);
+
+  return (node2->availCores - node1->availCores);
+}
+
+int schedule_instance_mincoreusage(virtualMachine *vm, int *outresid) {
+  int i, rc, done, resid, sleepresid;
+  resource *res;
+  int resIds[MAXNODES];
+
+  *outresid = 0;
+
+  logprintfl(EUCAINFO, "scheduler using MIN_CORE_USAGE policy to find next resource\n");
+
+  for (i=0; i<config->numResources; i++)
+    resIds[i] = i;
+  
+  qsort (resIds, config->numResources, sizeof(int), cmp_coreusage);
+  logprintfl(EUCADEBUG, "sorting resources done\n");
+  
+  
+  // find the best 'resource' on which to run the instance
+  resid = sleepresid = -1;
+  done=0;
+  for (i=0; i<config->numResources && !done; i++) {
+    int mem, disk, cores;
+    
+    // new fashion way
+    res = &(config->resourcePool[resIds[i]]);
+    if ((res->state == RESUP || res->state == RESWAKING) && resid == -1) {
+      mem = res->availMemory - vm->mem;
+      disk = res->availDisk - vm->disk;
+      cores = res->availCores - vm->cores;
+      
+      if (mem >= 0 && disk >= 0 && cores >= 0) {
+	resid = resIds[i];
+	done++;
+      }
+    } else if (res->state == RESASLEEP && sleepresid == -1) {
+      mem = res->availMemory - vm->mem;
+      disk = res->availDisk - vm->disk;
+      cores = res->availCores - vm->cores;
+      
+      if (mem >= 0 && disk >= 0 && cores >= 0) {
+	sleepresid = resIds[i];
+      }
+    }
+  }
+  
+  if (resid == -1 && sleepresid == -1) {
+    // didn't find a resource
+    return(1);
+  }
+  
+  if (resid != -1) {
+    res = &(config->resourcePool[resid]);
+    *outresid = resid;
+  } else if (sleepresid != -1) {
+    res = &(config->resourcePool[sleepresid]);
+    *outresid = sleepresid;
+  }
+  if (res->state == RESASLEEP) {
+    rc = powerUp(res);
+  }
+
+  return(0);
+}
+
+
 
 int schedule_instance_greedy(virtualMachine *vm, int *outresid) {
   int i, rc, done, resid, sleepresid;
@@ -1387,7 +2574,6 @@ int doRunInstances(ncMetadata *ccMeta, char *amiId, char *kernelId, char *ramdis
   // get updated resource information
   rc = refresh_resources(ccMeta, OP_TIMEOUT - (time(NULL) - op_start));
 
-
   done=0;
   for (i=0; i<maxCount && !done; i++) {
     instId = strdup(instIds[i]);
@@ -1437,6 +2623,14 @@ int doRunInstances(ncMetadata *ccMeta, char *amiId, char *kernelId, char *ramdis
       sem_wait(configLock);
       
       resid = 0;
+      
+      if (config->schedPolicy == SCHEDPOLICYBASED) {
+	metadata = ccMeta;
+	schedUser = ccMeta->userId;
+      }
+
+      
+
       rc = schedule_instance(ccvm, targetNode, &resid);
       res = &(config->resourcePool[resid]);
       if (rc) {
@@ -1589,6 +2783,7 @@ int doRunInstances(ncMetadata *ccMeta, char *amiId, char *kernelId, char *ramdis
   if (error) {
     return(1);
   }
+
   return(0);
 }
 
@@ -1884,6 +3079,15 @@ int doTerminateInstances(ncMetadata *ccMeta, char **instIds, int instIdsLen, int
   
   shawn();
 
+  if (config->migration_events & TERMINATE_EVT) {
+    int pid;
+    
+    pid = fork();
+    if (pid == 0) {
+      exit(doMigrateInstances(ccMeta, NULL, NULL));
+    }
+  }
+
   return(0);
 }
 
@@ -2094,7 +3298,7 @@ int init_thread(void) {
 int init_config(void) {
   resource *res=NULL;
   char *tmpstr=NULL;
-  int rc, numHosts, use_wssec, schedPolicy, idleThresh, wakeThresh, ret, i;
+  int rc, numHosts, use_wssec, schedPolicy, policyEngergyEfficiencyWeight, policyLocalityWeight, policyPerformanceWeight, idleThresh, wakeThresh, ret, i, useMonitoringHistory, utilizationTolerance, networkUtilizationTolerance, maxMigrate, migrationEvents;
   
   char configFile[1024], netPath[1024], eucahome[1024], policyFile[1024], home[1024];
   
@@ -2375,9 +3579,102 @@ int init_config(void) {
     if (!strcmp(tmpstr, "GREEDY")) schedPolicy = SCHEDGREEDY;
     else if (!strcmp(tmpstr, "ROUNDROBIN")) schedPolicy = SCHEDROUNDROBIN;
     else if (!strcmp(tmpstr, "POWERSAVE")) schedPolicy = SCHEDPOWERSAVE;
+    else if (!strcmp(tmpstr, "POLICYBASED")) schedPolicy = SCHEDPOLICYBASED;
+    else if (!strcmp(tmpstr, "MINCOREUSAGE")) schedPolicy = MINCOREUSAGE;
     else schedPolicy = SCHEDGREEDY;
   }
   if (tmpstr) free(tmpstr);
+  
+  if (schedPolicy == SCHEDPOLICYBASED) {
+    pthread_t tcb;
+    rc = get_conf_var(configFile, "POLICY_LOCALITY_WEIGHT", &tmpstr);
+    if (rc != 1) {
+      // error
+      logprintfl(EUCAWARN, "parsing config file (%s) for POLICY_LOCALITY_WEIGHT, default to 0\n", configFile);
+      policyLocalityWeight = 0;
+      tmpstr = NULL;
+    } else {
+      policyLocalityWeight = atoi (tmpstr);
+    }
+    if (tmpstr) free (tmpstr);
+    
+    rc = get_conf_var(configFile, "POLICY_ENGERGYEFFICIENCY_WEIGHT", &tmpstr);
+    if (rc != 1) {
+      // error
+      logprintfl(EUCAWARN, "parsing config file (%s) for POLICY_ENGERGYEFFICIENCY_WEIGHT, default to 0\n", configFile);
+      policyEngergyEfficiencyWeight = 0;
+      tmpstr = NULL;
+    } else {
+      policyEngergyEfficiencyWeight = atoi (tmpstr);
+    }
+    if (tmpstr) free (tmpstr);
+    
+    rc = get_conf_var(configFile, "POLICY_PERFORMANCE_WEIGHT", &tmpstr);
+    if (rc != 1) {
+      // error
+      logprintfl(EUCAWARN, "parsing config file (%s) for POLICY_PERFORMANCE_WEIGHT, default to 0\n", configFile);
+      policyPerformanceWeight = 0;
+      tmpstr = NULL;
+    } else {
+      policyPerformanceWeight = atoi (tmpstr);
+    }
+    if (tmpstr) free (tmpstr);
+  }
+
+  rc = get_conf_var(configFile, "USE_MONITORING_HISTORY", &tmpstr);
+  if (rc != 1) {
+    //error
+    logprintfl(EUCAWARN, "parsing config file (%s for USE_MONITORING_HISTORY, default to 0\n", configFile);
+    useMonitoringHistory = 0;
+    tmpstr = NULL;
+  } else {
+    useMonitoringHistory = atoi (tmpstr);
+  }
+  if (tmpstr) free (tmpstr);
+
+  rc = get_conf_var(configFile, "UTILIZATION_TOLERANCE", &tmpstr);
+  if (rc != 1) {
+    //error
+    logprintfl(EUCAWARN, "parsing config file (%s for UTILIZATION_TOLERANCE, default to 0\n", configFile);
+    utilizationTolerance = 0;
+    tmpstr = NULL;
+  } else {
+    utilizationTolerance = atoi (tmpstr);
+  }
+  if (tmpstr) free (tmpstr);
+
+  rc = get_conf_var(configFile, "NETWORK_UTILIZATION_TOLERANCE", &tmpstr);
+  if (rc != 1) {
+    //error
+    logprintfl(EUCAWARN, "parsing config file (%s for NETWORK_UTILIZATION_TOLERANCE, default to 0\n", configFile);
+    networkUtilizationTolerance = 0;
+    tmpstr = NULL;
+  } else {
+    networkUtilizationTolerance = atoi (tmpstr);
+  }
+  if (tmpstr) free (tmpstr);
+
+  rc = get_conf_var(configFile, "MAX_MIGRATE", &tmpstr);
+  if (rc != 1) {
+    //error
+    logprintfl(EUCAWARN, "parsing config file (%s for MAX_MIGRATE, default to 0\n", configFile);
+    maxMigrate = 0;
+    tmpstr = NULL;
+  } else {
+    maxMigrate = atoi (tmpstr);
+  }
+  if (tmpstr) free (tmpstr);
+
+  rc = get_conf_var(configFile, "MIGRATION_EVENTS", &tmpstr);
+  if (rc != 1) {
+    //error
+    logprintfl(EUCAWARN, "parsing config file (%s for MIGRATION_EVENTS, default to 0\n", configFile);
+    migrationEvents = 0;
+    tmpstr = NULL;
+  } else {
+    migrationEvents = atoi (tmpstr);
+  }
+  if (tmpstr) free (tmpstr);
 
   // powersave options
   rc = get_conf_var(configFile, "POWER_IDLETHRESH", &tmpstr);
@@ -2435,6 +3732,16 @@ int init_config(void) {
   strncpy(config->policyFile, policyFile, 1024);
   config->use_wssec = use_wssec;
   config->schedPolicy = schedPolicy;
+  if (schedPolicy == SCHEDPOLICYBASED) {
+    config->policy_energyefficiency_weight = policyEngergyEfficiencyWeight;
+    config->policy_locality_weight = policyLocalityWeight;
+    config->policy_performance_weight = policyPerformanceWeight;
+  }
+  config->use_monitoring_history = useMonitoringHistory;
+  config->utilization_tolerance = utilizationTolerance;
+  config->network_utilization_tolerance = networkUtilizationTolerance;
+  config->max_migrate = maxMigrate;
+  config->migration_events = migrationEvents;
   config->idleThresh = idleThresh;
   config->wakeThresh = wakeThresh;
   config->numResources = numHosts;
@@ -2450,7 +3757,7 @@ int init_config(void) {
   
   logprintfl(EUCADEBUG,"init_config(): done\n");
   //  init=1;
-  
+ 
   return(0);
 }
 
@@ -2633,6 +3940,7 @@ int refreshNodes(ccConfig *config, char *configFile, resource **res, int *numHos
   free(ncservice);
   if (hosts) free(hosts);
   if (tmpstr) free(tmpstr);
+
   return(0);
 }
 
@@ -2871,4 +4179,3 @@ int find_instanceCacheIP(char *ip, ccInstance **out) {
   }
   return(1);
 }
-

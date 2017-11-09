@@ -101,9 +101,15 @@ distclean:
 install: deploy
 	$(INSTALL) nc-client-policy.xml $(vardir)/lib/eucalyptus/keys/
 	$(INSTALL) -m 0755 test_nc $(sbindir)/euca_test_nc
-
+	$(INSTALL) -m 0755 monitoring/getNetworkUtilization.py $(sbindir)/getNetworkUtilization.py
+	$(INSTALL) -m 0755 monitoring/getNumInstances.py $(sbindir)/getNumInstances.py
+	$(INSTALL) -m 0755 monitoring/getUsedVCores.py $(sbindir)/getUsedVCores.py
+	$(INSTALL) -m 0755 monitoring/getInstanceUtilization.py $(sbindir)/getInstanceUtilization.py
 uninstall:
 	$(RM) -f $(vardir)/lib/eucalyptus/keys/nc-client-policy.xml
 	$(RM) -f $(sbindir)/euca_test_nc
 	$(RM) -rf $(AXIS2C_SERVICES)/$(SERVICE_NAME)
-
+	$(RM) -f $(sbindir)/getNetworkUtilization.py
+	$(RM) -f $(sbindir)/getNumInstances.py
+	$(RM) -f $(sbindir)/getUsedVCores.py
+	$(RM) -f $(sbindir)/getInstanceUtilization.py

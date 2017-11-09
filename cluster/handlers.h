@@ -68,7 +68,14 @@ permission notice:
 
 #define OP_TIMEOUT 60
 #define OP_TIMEOUT_PERNODE 10
+#define UTIL_HISTORY_LENGTH 50
+#define QUANTILE 2.009
+#define INST_UTIL_HISTORY_LENGTH 20
 
+// Migration events
+#define TERMINATE_EVT     0x0001
+#define CHANGE_POLICY_EVT 0x0002
+#define UTIL_VAR_EVT      0x0004
 enum {SHARED_MEM, SHARED_FILE};
 
 typedef struct virtualMachine_t {
@@ -116,6 +123,8 @@ typedef struct instance_t {
 
   ncVolume volumes[EUCA_MAX_VOLUMES];
   int volumesSize;
+
+  int utilization[INST_UTIL_HISTORY_LENGTH];
 } ccInstance;
 
 int allocate_ccInstance(ccInstance *out, char *id, char *amiId, char *kernelId, char *ramdiskId, char *amiURL, char *kernelURL, char *ramdiskURL, char *ownerId, char *state, time_t ts, char *reservationId, netConfig *ccnet, virtualMachine *ccvm, int ncHostIdx, char *keyName, char *serviceTag, char *userData, char *launchIndex, char groupNames[][32], ncVolume *volumes, int volumesSize, int networkIndex);
@@ -133,6 +142,9 @@ typedef struct resource_t {
   // state information
   int state, lastState;
   time_t stateChange, idleStart;
+  ncHardwareInfo hwinfo;
+  ncUtilization utilization[UTIL_HISTORY_LENGTH];
+  int powerConsumption[101]; /* powerConsumption[i] describes the powerConsumption at i% utilization */
 } resource;
 
 typedef struct ccConfig_t {
@@ -147,9 +159,17 @@ typedef struct ccConfig_t {
   int schedPolicy, schedState;
   int idleThresh, wakeThresh;
   time_t configMtime;
+  int policy_energyefficiency_weight;
+  int policy_locality_weight;
+  int policy_performance_weight;
+  int use_monitoring_history;
+  int utilization_tolerance;
+  int network_utilization_tolerance;
+  int max_migrate;
+  int migration_events;
 } ccConfig;
 
-enum {SCHEDGREEDY, SCHEDROUNDROBIN, SCHEDPOWERSAVE};
+enum {SCHEDGREEDY, SCHEDROUNDROBIN, SCHEDPOWERSAVE, SCHEDPOLICYBASED, MINCOREUSAGE};
 
 int doStartNetwork(ncMetadata *ccMeta, char *netName, int vlan, char *nameserver, char **ccs, int ccsLen);
 int doConfigureNetwork(ncMetadata *meta, char *type, int namedLen, char **sourceNames, char **userNames, int netLen, char **sourceNets, char *destName, char *destUserName, char *protocol, int minPort, int maxPort);
@@ -172,11 +192,46 @@ int doTerminateInstances(ncMetadata *meta, char **instIds, int instIdsLen, int *
 int doRegisterImage(ncMetadata *meta, char *amiId, char *location);
 int doDescribeResources(ncMetadata *ccMeta, virtualMachine **ccvms, int vmLen, int **outTypesMax, int **outTypesAvail, int *outTypesLen, char ***outServiceTags, int *outServiceTagsLen);
 int doFlushNetwork(ncMetadata *ccMeta, char *destName);
-
+int doDescribePerformance(ncMetadata *ccMeta, int *totalCpuCores, int *avgMhz);
+int doDescribeUtilization(ncMetadata *ccMeta, int *utilization);
+int doDescribePowerConsumption(ncMetadata *ccMeta, int *powerConsumption);
+int doDescribePowerIncrease(ncMetadata *ccMeta, int *powerIncrease);
+int doDescribeUsersInstances(ncMetadata *ccMeta, int *numberOfInstances);
+int doMigrateInstances(ncMetadata *ccMeta, char *src, char *dst);
+int doChangeSchedulingPolicy(ncMetadata *ccMeta, char *policy, int performanceWeight, int localityWeight, int energyWeight);
+int performMigration(ncMetadata *ccMeta, char *src, char *dst);
+ccInstance *selectMigrationInstance(ncMetadata *ccMeta, char *srcNode);
 int schedule_instance(virtualMachine *vm, char *targetNode, int *outresid);
+int schedule_instance_policy_based(virtualMachine *vm, int *outresid);
 int schedule_instance_greedy(virtualMachine *vm, int *outresid);
 int schedule_instance_roundrobin(virtualMachine *vm, int *outresid);
 int schedule_instance_explicit(virtualMachine *vm, char *targetNode, int *outresid);
+int schedule_instance_mincoreusage(virtualMachine *vm, int *outresid);
+int cmp_nodes (const void *node1, const void *node2);
+int cmp_coreusage (const void *nodeId1, const void *nodeId2);
+int hasRunningInstances();
+int cmp_instances (const void *inst1, const void *inst2);
+int cmp_performance_factor (resource *node1, resource *node2);
+int cmp_energy_factor (resource *node1, resource *node2);
+int cmp_locality_factor (resource *node1, resource *node2);
+double getAvgInstsPerUser (resource *res);
+int getUserInstsOnHost (ccInstance *instance);
+int getInstanceUtilization (ccInstance *instance);
+int getNumUserInsts (char *user, resource *res);
+int getTotalInsts (resource *res);
+int getCoreUtilization (resource *res);
+int getNetworkUtilization (resource *res);
+int getNodeUtilization (resource *res);
+int cmp_hardware (resource *node1, resource *node2);
+int getUtilization (resource *node);
+int getPowerIncrease (resource *res);
+int getPowerConsumption (resource *res);
+void updateMonitoringData (ncMetadata *ccMeta);
+void update_instance_utilization (int *instUtil, int util);
+void update_resource_utilization (ncUtilization *resUtil, ncUtilization util);
+int utilizationChange (ncUtilization *utilization);
+void updateInstanceUtilization (ccInstance *instance, ncMetadata *ccMeta, int timeout);
+void updateHardwareInfo (ncMetadata *ccMeta);
 int add_instanceCache(char *instanceId, ccInstance *in);
 int refresh_instanceCache(char *instanceId, ccInstance *in);
 int del_instanceCacheId(char *instanceId);
@@ -204,6 +259,5 @@ int maintainNetworkState();
 int powerDown(ncMetadata *ccMeta, resource *node);
 int powerUp(resource *node);
 int changeState(resource *in, int newstate);
-
 #endif
 

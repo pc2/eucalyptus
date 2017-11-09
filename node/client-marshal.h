@@ -81,7 +81,11 @@ int ncDescribeInstancesStub (ncStub *stub, ncMetadata *meta, char **instIds, int
 int ncDescribeResourceStub  (ncStub *stub, ncMetadata *meta, char *resourceType, ncResource **outRes);
 int ncStartNetworkStub  (ncStub *stub, ncMetadata *meta, char **peers, int peersLen, int port, int vlan, char **outStatus);
 int ncPowerDownStub  (ncStub *st, ncMetadata *meta);
+int ncAdoptInstancesStub  (ncStub *st, ncMetadata *meta);
 int ncAttachVolumeStub (ncStub *stub, ncMetadata *meta, char *instanceId, char *volumeId, char *remoteDev, char *localDev);
 int ncDetachVolumeStub (ncStub *stub, ncMetadata *meta, char *instanceId, char *volumeId, char *remoteDev, char *localDev, int force);
-
+int ncDescribeHardwareStub (ncStub *st, ncMetadata *meta, ncHardwareInfo *hwinfo);
+int ncDescribeUtilizationStub (ncStub *st, ncMetadata *meta, ncUtilization *utilization);
+int ncDescribeInstanceUtilizationStub (ncStub *st, ncMetadata *meta, char *instanceId, int *utilization);
+int ncMigrateInstanceStub (ncStub *st, ncMetadata *meta, char *instanceId, char *target);
 #endif

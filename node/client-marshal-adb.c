@@ -544,6 +544,40 @@ int ncPowerDownStub  (ncStub *st, ncMetadata *meta) {
   return status;
 }
 
+int ncAdoptInstancesStub  (ncStub *st, ncMetadata *meta) {
+  axutil_env_t * env  = st->env;
+  axis2_stub_t * stub = st->stub;
+  adb_ncAdoptInstances_t * input   = adb_ncAdoptInstances_create (env); 
+  adb_ncAdoptInstancesType_t * request = adb_ncAdoptInstancesType_create (env);
+  
+  // set standard input fields
+  if (meta) {
+    adb_ncAdoptInstancesType_set_correlationId (request, env, meta->correlationId);
+    adb_ncAdoptInstancesType_set_userId (request, env, meta->userId);
+  }
+  
+  // set op-specific input fields
+  adb_ncAdoptInstances_set_ncAdoptInstances(input, env, request);
+  
+  int status = 0;
+  { // do it
+    adb_ncAdoptInstancesResponse_t * output = axis2_stub_op_EucalyptusNC_ncAdoptInstances (stub, env, input);
+    
+    if (!output) {
+      logprintfl (EUCAERROR, "ERROR: AdoptInstances" NULL_ERROR_MSG);
+      status = -1;
+    } else {
+      adb_ncAdoptInstancesResponseType_t * response = adb_ncAdoptInstancesResponse_get_ncAdoptInstancesResponse (output, env);
+      if ( adb_ncAdoptInstancesResponseType_get_return(response, env) == AXIS2_FALSE ) {
+	logprintfl (EUCAERROR, "ERROR: AdoptInstances returned an error\n");
+	status = 1;
+      }
+    }
+  }
+  
+  return status;
+}
+
 int ncStartNetworkStub  (ncStub *st, ncMetadata *meta, char **peers, int peersLen, int port, int vlan, char **outStatus) 
 {
     axutil_env_t * env  = st->env;
@@ -666,6 +700,184 @@ int ncDetachVolumeStub (ncStub *st, ncMetadata *meta, char *instanceId, char *vo
                 logprintfl (EUCAERROR, "ERROR: DetachVolume returned an error\n");
                 status = 1;
             }
+        }
+    }
+    
+    return status;
+}
+
+int ncDescribeHardwareStub (ncStub *st, ncMetadata *meta, ncHardwareInfo *hwinfo)
+{
+    axutil_env_t * env  = st->env;
+    axis2_stub_t * stub = st->stub;
+    adb_ncDescribeHardware_t     * input   = adb_ncDescribeHardware_create (env); 
+    adb_ncDescribeHardwareType_t * request = adb_ncDescribeHardwareType_create (env);
+    
+    // set standard input fields
+    if (meta) {
+        adb_ncDescribeHardwareType_set_correlationId (request, env, meta->correlationId);
+        adb_ncDescribeHardwareType_set_userId (request, env, meta->userId);
+    }
+    
+    adb_ncDescribeHardware_set_ncDescribeHardware(input, env, request);
+
+    int status = 0;
+    { // do it
+        adb_ncDescribeHardwareResponse_t * output = axis2_stub_op_EucalyptusNC_ncDescribeHardware (stub, env, input);
+        
+        if (!output) {
+            logprintfl (EUCAERROR, "ERROR: DescribeHardware" NULL_ERROR_MSG);
+            status = -1;
+
+        } else {
+            adb_ncDescribeHardwareResponseType_t * response = adb_ncDescribeHardwareResponse_get_ncDescribeHardwareResponse (output, env);
+            if ( adb_ncDescribeHardwareResponseType_get_return(response, env) == AXIS2_FALSE ) {
+                logprintfl (EUCAERROR, "ERROR: DescribeHardware returned an error\n");
+                status = 1;
+            }
+	    
+	    // extract the fields from reponse
+	    strncpy (hwinfo->model, adb_ncDescribeHardwareResponseType_get_model(response, env), CHAR_BUFFER_SIZE);
+	    hwinfo->memory = adb_ncDescribeHardwareResponseType_get_memory(response, env);
+	    hwinfo->cpus = adb_ncDescribeHardwareResponseType_get_cpus(response, env);
+	    hwinfo->mhz = adb_ncDescribeHardwareResponseType_get_mhz(response, env);
+	    hwinfo->nodes = adb_ncDescribeHardwareResponseType_get_nodes(response, env);
+	    hwinfo->sockets = adb_ncDescribeHardwareResponseType_get_sockets(response, env);
+	    hwinfo->cores = adb_ncDescribeHardwareResponseType_get_cores(response, env);
+	    hwinfo->threads = adb_ncDescribeHardwareResponseType_get_threads(response, env);
+        }
+    }
+    
+    return status;
+}
+
+int ncDescribeUtilizationStub (ncStub *st, ncMetadata *meta, ncUtilization *utilization)
+{
+    axutil_env_t * env  = st->env;
+    axis2_stub_t * stub = st->stub;
+    adb_ncDescribeUtilization_t * input   = adb_ncDescribeUtilization_create (env); 
+    adb_ncDescribeUtilizationType_t * request = adb_ncDescribeUtilizationType_create (env);
+    
+    // set standard input fields
+    if (meta) {
+        adb_ncDescribeUtilizationType_set_correlationId (request, env, meta->correlationId);
+        adb_ncDescribeUtilizationType_set_userId (request, env, meta->userId);
+    }
+    
+    adb_ncDescribeUtilization_set_ncDescribeUtilization(input, env, request);
+
+    int status = 0;
+    { // do it
+        adb_ncDescribeUtilizationResponse_t * output = axis2_stub_op_EucalyptusNC_ncDescribeUtilization (stub, env, input);
+        
+        if (!output) {
+            logprintfl (EUCAERROR, "ERROR: DescribeUtilization" NULL_ERROR_MSG);
+            status = -1;
+
+        } else {
+	    int i;
+            adb_ncDescribeUtilizationResponseType_t * response = adb_ncDescribeUtilizationResponse_get_ncDescribeUtilizationResponse (output, env);
+            if ( adb_ncDescribeUtilizationResponseType_get_return(response, env) == AXIS2_FALSE ) {
+                logprintfl (EUCAERROR, "ERROR: DescribeUtilization returned an error\n");
+                status = 1;
+            }
+
+            // extract the fields from reponse
+	    utilization->utilization = adb_ncDescribeUtilizationResponseType_get_utilization(response, env);
+	    utilization->networkUtilization =  adb_ncDescribeUtilizationResponseType_get_networkUtilization(response,env);
+	    utilization->timePoint = (time_t) adb_ncDescribeUtilizationResponseType_get_measurementTimepoint(response, env);
+	    utilization->powerConsumption = adb_ncDescribeUtilizationResponseType_get_powerConsumption(response, env);
+	        
+	    /*for (i=0; i<utilization->numInstances; i++)
+	      {
+		int j;
+		adb_instanceUtilization_t *instance = adb_ncDescribeUtilizationResponseType_get_instances_at(response, env, i);
+		strncpy (utilization->instances[i].instanceId, adb_instanceUtilization_get_instanceId(instance, env), CHAR_BUFFER_SIZE);
+		utilization->instances[i].numVcpus = adb_instanceUtilization_sizeof_vcpuUtilization(instance, env);
+		utilization->instances[i].vnetworkUtilization = adb_instanceUtilization_get_vnetworkUtilization(instance, env);
+		for (j=0; j<utilization->instances[i].numVcpus; j++)
+		  utilization->instances[i].vcpuUtilization[j] = adb_instanceUtilization_get_vcpuUtilization_at(instance, env, j);	   
+		  }*/
+        }
+    }
+    
+    return status;
+}
+
+int ncDescribeInstanceUtilizationStub (ncStub *st, ncMetadata *meta, char *instanceId, int *utilization)
+{
+    axutil_env_t * env  = st->env;
+    axis2_stub_t * stub = st->stub;
+    adb_ncDescribeInstanceUtilization_t * input   = adb_ncDescribeInstanceUtilization_create (env); 
+    adb_ncDescribeInstanceUtilizationType_t * request = adb_ncDescribeInstanceUtilizationType_create (env);
+    
+    // set standard input fields
+    if (meta) {
+        adb_ncDescribeInstanceUtilizationType_set_correlationId (request, env, meta->correlationId);
+        adb_ncDescribeInstanceUtilizationType_set_userId (request, env, meta->userId);
+	adb_ncDescribeInstanceUtilizationType_set_instanceId (request, env, instanceId);
+    }
+    
+    adb_ncDescribeInstanceUtilization_set_ncDescribeInstanceUtilization(input, env, request);
+
+    int status = 0;
+    { // do it
+        adb_ncDescribeInstanceUtilizationResponse_t * output = axis2_stub_op_EucalyptusNC_ncDescribeInstanceUtilization (stub, env, input);
+        
+        if (!output) {
+            logprintfl (EUCAERROR, "ERROR: DescribeInstanceUtilization" NULL_ERROR_MSG);
+            status = -1;
+
+        } else {
+	    int i;
+            adb_ncDescribeInstanceUtilizationResponseType_t * response = adb_ncDescribeInstanceUtilizationResponse_get_ncDescribeInstanceUtilizationResponse (output, env);
+            if ( adb_ncDescribeInstanceUtilizationResponseType_get_return(response, env) == AXIS2_FALSE ) {
+                logprintfl (EUCAERROR, "ERROR: DescribeInstanceUtilization returned an error\n");
+                status = 1;
+            }
+
+            // extract the fields from reponse
+	    *utilization = adb_ncDescribeInstanceUtilizationResponseType_get_utilization(response, env);
+        }
+    }
+    
+    return status;
+}
+
+int ncMigrateInstanceStub (ncStub *st, ncMetadata *meta, char *instanceId, char *target)
+{
+    axutil_env_t * env  = st->env;
+    axis2_stub_t * stub = st->stub;
+    adb_ncMigrateInstance_t     * input   = adb_ncMigrateInstance_create (env); 
+    adb_ncMigrateInstanceType_t * request = adb_ncMigrateInstanceType_create (env);
+    
+    // set standard input fields
+    if (meta) {
+        adb_ncMigrateInstanceType_set_correlationId (request, env, meta->correlationId);
+        adb_ncMigrateInstanceType_set_userId (request, env, meta->userId);
+    }
+    
+    adb_ncMigrateInstanceType_set_instanceId(request, env, instanceId);
+    adb_ncMigrateInstanceType_set_target(request, env, target);
+    adb_ncMigrateInstance_set_ncMigrateInstance(input, env, request);
+
+    int status = 0;
+    { // do it
+        adb_ncMigrateInstanceResponse_t * output = axis2_stub_op_EucalyptusNC_ncMigrateInstance (stub, env, input);
+        
+        if (!output) {
+            logprintfl (EUCAERROR, "ERROR: MigrateInstance" NULL_ERROR_MSG);
+            status = -1;
+
+        } else {
+            adb_ncMigrateInstanceResponseType_t * response = adb_ncMigrateInstanceResponse_get_ncMigrateInstanceResponse (output, env);
+            if ( adb_ncMigrateInstanceResponseType_get_return(response, env) == AXIS2_FALSE ) {
+                logprintfl (EUCAERROR, "ERROR: MigrateInstance returned an error\n");
+                status = 1;
+            }
+
+	    else
+	      status = 0;
         }
     }
     

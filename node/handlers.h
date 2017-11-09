@@ -68,6 +68,7 @@ permission notice:
 
 #define LIBVIRT_QUERY_RETRIES 5
 #define MAXDOMS 1024
+#define MAX_CORES_PER_INSTANCE 64
 #define BYTES_PER_DISK_UNIT 1048576 /* disk stats are in Gigs */
 #define SWAP_SIZE 512 /* for now, the only possible swap size, in MBs */
 
@@ -100,6 +101,11 @@ struct nc_state_t {
 	char virsh_cmd_path[CHAR_BUFFER_SIZE];
 	char xm_cmd_path[CHAR_BUFFER_SIZE];
 	char detach_cmd_path[CHAR_BUFFER_SIZE];
+        //sensors
+        char utilization_sensor_cmd[CHAR_BUFFER_SIZE];
+        char network_utilization_sensor_cmd[CHAR_BUFFER_SIZE];
+        char power_consumption_sensor_cmd[CHAR_BUFFER_SIZE];
+        char instance_utilization_sensor_cmd[CHAR_BUFFER_SIZE];
 };
 
 
@@ -169,6 +175,22 @@ struct handlers {
 				char *remoteDev,
 				char *localDev,
 				int force);
+    int (*doDescribeHardware)   (struct nc_state_t *nc,
+				ncMetadata *meta, 
+				ncHardwareInfo *hwinfo);
+    int (*doDescribeUtilization)(struct nc_state_t *nc,
+			        ncMetadata *meta, 
+				ncUtilization *utilization);
+    int (*doMigrateInstance)    (struct nc_state_t *nc,
+				 ncMetadata *meta,
+				 char *instanceId,
+				 char *target);
+    int (*doAdoptInstances)     (struct nc_state_t *nc,
+				 ncMetadata *meta);
+    int (*doDescribeInstanceUtilization)(struct nc_state_t *nc,
+					 ncMetadata *meta,
+					 char *instanceid,
+					 int *utilization);
 };
 
 #ifdef HANDLERS_FANOUT // only declare for the fanout code, not the actual handlers
@@ -182,6 +204,11 @@ int doDescribeResource		(ncMetadata *meta, char *resourceType, ncResource **outR
 int doStartNetwork		(ncMetadata *ccMeta, char **remoteHosts, int remoteHostsLen, int port, int vlan);
 int doAttachVolume		(ncMetadata *meta, char *instanceId, char *volumeId, char *remoteDev, char *localDev);
 int doDetachVolume		(ncMetadata *meta, char *instanceId, char *volumeId, char *remoteDev, char *localDev, int force);
+int doDescribeHardware          (ncMetadata *meta, ncHardwareInfo *hwinfo);
+int doDescribeUtilization       (ncMetadata *meta, ncUtilization *utilization);
+int doDescribeInstanceUtil      (ncMetadata *meta, char *instanceId, int *utilization);
+int doMigrateInstance           (ncMetadata *meta, char *instanceId, char *target);
+int doAdoptInstances            (ncMetadata *meta);
 #endif /* HANDLERS_FANOUT */
 
 
@@ -211,6 +238,11 @@ int get_instance_xml(		const char *gen_libvirt_cmd_path,
 				char **xml);
 void * monitoring_thread(	void *arg);
 void * startup_thread(		void *arg);
-
+int perform_sensor_call(        char *cmd,
+				int *result);
+int timeread(                   int fd, 
+				void *buf, 
+				size_t bytes, 
+				int timeout);
 #endif /* INCLUDE */
 

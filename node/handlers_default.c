@@ -360,6 +360,271 @@ doDetachVolume(	struct nc_state_t *nc,
 	return ERROR_FATAL;
 }
 
+static int doDescribeHardware ( struct nc_state_t *nc, 
+				ncMetadata *meta, 
+				ncHardwareInfo *hwinfo)
+{
+  virNodeInfo info;
+  virConnectPtr *con = check_hypervisor_conn();
+  
+  sem_p (hyp_sem);
+  if (virNodeGetInfo (*con, &info) != 0)
+    return (-1);
+  sem_v (hyp_sem);
+
+  strcpy (hwinfo->model, info.model);
+  hwinfo->memory = info.memory;
+  hwinfo->cpus = info.cpus;
+  hwinfo->mhz = info.mhz;
+  hwinfo->nodes = info.nodes;
+  hwinfo->sockets = info.sockets;
+  hwinfo->cores = info.cores;
+  hwinfo->threads = info.threads;
+
+  return (0);
+}
+
+static int getNetworkUtilization (char *cmd, int *networkUtilization)
+{
+  if (perform_sensor_call (cmd, networkUtilization)!=0) {
+    logprintfl (EUCAERROR, "can not get network utilization");
+    *networkUtilization = 0;
+    return (-1);
+  }
+  else
+    return 0;
+}
+
+static int getHostUtilization (char *cmd, int *utilization)
+{
+  if (perform_sensor_call (cmd, utilization)!=0) {
+    logprintfl (EUCAERROR, "can not get host utilization");
+    *utilization = 0;
+    return (-1);
+  }
+  else
+    return 0;
+}
+
+static int getPowerConsumption (char *cmd, int *powerConsumption)
+{
+  if (perform_sensor_call (cmd, powerConsumption)!=0) {
+    logprintfl (EUCAERROR, "can not get power consumption");
+    *powerConsumption = 0;
+    return (-1);
+  }
+  else
+    return 0;
+}
+
+/*
+static int getInstanceUtilization (ncInstanceUtilization *instanceUtilization[])
+{
+  int ret=OK;
+  virConnectPtr *conn;
+  conn = check_hypervisor_conn();
+  
+  if (conn)
+    {
+      int num_doms=0, dom_ids[MAXDOMS], i;
+      virDomainPtr dom = NULL;
+
+      logprintfl (EUCAINFO, "looking for existing domains\n");
+	virSetErrorFunc (NULL, libvirt_error_handler);
+	
+      sem_p (hyp_sem);
+      num_doms = virConnectListDomains(*conn, dom_ids, MAXDOMS);
+      sem_v (hyp_sem);
+
+      if (num_doms == 0) {
+	logprintfl (EUCAINFO, "no currently running domains\n");
+	return (0);
+      } if (num_doms < 0) {
+	logprintfl (EUCAWARN, "WARNING: failed to find out about running domains\n");
+	return -1;
+      }
+
+      for ( i=0; i<num_doms; i++) {
+	int num_vcpus;
+	virVcpuInfo vcpu_info1[MAX_CORES_PER_INSTANCE];
+	virVcpuInfo vcpu_info2[MAX_CORES_PER_INSTANCE];
+
+	sem_p(hyp_sem);
+	dom = virDomainLookupByID(*conn, dom_ids[i]);
+	sem_v(hyp_sem);
+	if (!dom) {
+	  logprintfl (EUCAWARN, "WARNING: failed to lookup running domain #%d, ignoring it\n", dom_ids[i]);
+	  continue;
+	}
+	
+	num_vcpus = virDomainGetVcpus (dom, vcpu_info1, MAX_CORES_PER_INSTANCE, NULL, 0);
+	sleep (1);
+	num_vcpus = virDomainGetVcpus (dom, vcpu_info2, MAX_CORES_PER_INSTANCE, NULL, 0);
+
+	if (num_vcpus != -1)
+	  {
+	    int j;
+	    instanceUtilization[i]->numVcpus = num_vcpus;
+	    for (j=0; j<num_vcpus; j++)
+	      {
+		// cpuTime is given in nanoseconds by libvirt
+		instanceUtilization[i]->vcpuUtilization[j] = (double)(vcpu_info2->cpuTime - (double)vcpu_info1->cpuTime) / 1000000000.0;
+	      }
+	  }
+	else
+	  {
+	    ret = -1;
+	    return (ret);
+	  }
+
+	sem_p(hyp_sem);
+	virDomainFree (dom);
+	sem_v(hyp_sem);
+      }
+    }
+  else
+    {
+      ret = -1;
+    }
+
+  return ret;
+}
+*/
+
+
+static int doDescribeUtilization (struct nc_state_t *nc, 
+				  ncMetadata *meta, 
+				  ncUtilization *utilization)
+{
+  /*utilization->numInstances = getInstanceUtilization (&(utilization->instances));*/
+  if (getNetworkUtilization (nc->network_utilization_sensor_cmd, &(utilization->networkUtilization)) != 0 || 
+      getHostUtilization (nc->utilization_sensor_cmd, &(utilization->utilization))!=0 ||
+      getPowerConsumption (nc->power_consumption_sensor_cmd, &(utilization->powerConsumption))!=0)
+    {
+      return (-1);
+    }
+  time(&(utilization->timePoint));
+
+  /*if (utilization->numInstances == -1) {
+    utilization->numInstances = 0;
+    return (-1);
+    }
+    else*/
+    return (0);
+}
+
+static int getRemoteURI (struct nc_state_t *nc, char *target, char *result, size_t max_result_size)
+{
+  /* TODO: Put URI format to eucalyptus.con */ 
+  logprintfl(EUCADEBUG, "getRemoteURI() invoked\n");
+  if (!strcmp(nc->H->name, "xen")) 
+    snprintf(result, max_result_size, "xen+ssh://eucalyptus@%s", target);
+  else if (!strcmp(nc->H->name, "kvm"))
+    snprintf(result, max_result_size, "qemu+ssh://eucalyptus@%s/system", target);
+  else {
+    strncpy(result, target, max_result_size);
+    result = strdup(target);
+  }
+  logprintfl(EUCADEBUG, "getRemoteURI(): result=%s\n", result); 
+  return (OK);
+}
+
+static int doMigrateInstance(struct nc_state_t *nc, ncMetadata *meta, char *instanceId, char *target) 
+{
+  int ret=OK;
+  char remoteURI[CHAR_BUFFER_SIZE];
+  virConnectPtr *conn, dst;
+  ncInstance *instance;
+
+  logprintfl(EUCADEBUG, "doMigrateInstance() in default handler invoked\n");
+  conn = check_hypervisor_conn();
+ 
+  if (!conn) {
+    logprintfl(EUCAERROR, "doMigrateInstance() cannot connect to hypervisor\n");
+  }
+
+  if (target || !strcmp(target, "")) {
+    getRemoteURI(nc, target, remoteURI, CHAR_BUFFER_SIZE);
+    logprintfl(EUCADEBUG, "doMigrateInstance(): connecting to remote hypervisor\n");
+    dst = virConnectOpen(remoteURI);
+    if (!dst) {
+      logprintfl(EUCAERROR, "doMigrateInstance(): Connection to remote Hypervisor failed (URI: %s)\n", remoteURI);
+    } else {
+      logprintfl(EUCADEBUG, "doMigrateInstance(): Connected to %s\n", remoteURI);
+    }
+  } else {
+    logprintfl(EUCAERROR, "doMigrateInstance(): no migration target\n");
+    return (ERROR);
+  }
+
+  sem_p (inst_sem); 
+  instance = find_instance(&global_instances, instanceId);
+  sem_v (inst_sem);
+  if (instance == NULL) {
+    logprintfl(EUCAERROR, "doMigrateInstance(): instance not found\n");
+    return (NOT_FOUND);
+  }
+
+  if (conn && dst) {
+    sem_p(hyp_sem);
+    virDomainPtr dom = virDomainLookupByName(*conn, instanceId);
+    sem_v(hyp_sem);
+    
+    if (dom) {
+      sem_p (hyp_sem);
+      if (virDomainMigrate (dom, dst, VIR_MIGRATE_LIVE, NULL, NULL, 0))
+	logprintfl (EUCAINFO, "doMigrateInstance(): migrated instance %s\n", instanceId);
+      else 
+	ret = ERROR;
+      sem_v (hyp_sem);
+    }
+    else {
+      logprintfl (EUCAWARN, "warning: domain %s to be migrated not running on hypervisor\n", instanceId);
+      ret = ERROR;
+    }
+  }
+ else {
+   logprintfl(EUCAERROR, "doMigrateInstance(): Migrating %s failed\n", instanceId);
+   ret = ERROR;
+  }
+ 
+  if (ret == OK) {
+    sem_p (inst_sem); 
+    instance = find_instance(&global_instances, instanceId);
+    logprintfl(EUCADEBUG, "doMigrateInstance(): removing instance from global_instances\n");
+    if (remove_instance (&global_instances, instance) != OK) {
+      logprintfl(EUCAERROR, "doMigrateInstance(): cannot remove instance from global_instances\n");
+      ret = ERROR;
+    }
+    sem_v (inst_sem);
+  }
+ 
+  return (ret);
+}
+
+static int doAdoptInstances(struct nc_state_t *nc, ncMetadata *meta)
+{
+  adopt_instances();
+  return OK;
+}
+
+static int doDescribeInstanceUtilization(struct nc_state_t *nc, ncMetadata *meta, char *instanceId, int *utilization)
+{
+  char cmd[CHAR_BUFFER_SIZE];
+  if (strcmp(nc->instance_utilization_sensor_cmd, "") == 0) {
+    logprintfl(EUCAERROR, "No sensor for instance utilization\n");
+    return (-1);
+  } else {
+    snprintf (cmd, CHAR_BUFFER_SIZE, "%s %s", nc->instance_utilization_sensor_cmd, instanceId);
+    if (perform_sensor_call (cmd, utilization)!=0) {
+      logprintfl (EUCAERROR, "cannot get instance utilization");
+      *utilization = 0;
+      return (-1);
+    } else
+      return (0);
+  }
+}
+
 struct handlers default_libvirt_handlers = {
     .name = "default",
     .doInitialize        = doInitialize,
@@ -372,6 +637,10 @@ struct handlers default_libvirt_handlers = {
     .doStartNetwork      = doStartNetwork,
     .doPowerDown         = doPowerDown,
     .doAttachVolume      = doAttachVolume,
-    .doDetachVolume      = doDetachVolume
+    .doDetachVolume      = doDetachVolume,
+    .doDescribeHardware  = doDescribeHardware,
+    .doDescribeUtilization = doDescribeUtilization,
+    .doMigrateInstance   = doMigrateInstance,
+    .doAdoptInstances    = doAdoptInstances,
+    .doDescribeInstanceUtilization = doDescribeInstanceUtilization
 };
-

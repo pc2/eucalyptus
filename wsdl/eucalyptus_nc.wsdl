@@ -21,6 +21,104 @@
       </xs:sequence>
     </xs:complexType>
     
+    <xs:complexType name="ncDescribeHardwareType">
+      <xs:complexContent>
+	<xs:extension base="tns:eucalyptusMessage">
+	  <xs:sequence>
+	  </xs:sequence>
+	</xs:extension>
+      </xs:complexContent>
+    </xs:complexType>
+    
+    <xs:complexType name="ncDescribeHardwareResponseType">
+      <xs:complexContent>
+	<xs:extension base="tns:eucalyptusMessage">
+	  <xs:sequence>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="model" type="xs:string"/>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="memory" type="xs:int"/>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="cpus" type="xs:int"/>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="mhz" type="xs:int"/>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="nodes" type="xs:int"/>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="sockets" type="xs:int"/>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="cores" type="xs:int"/>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="threads" type="xs:int"/>
+	  </xs:sequence>
+	</xs:extension>
+      </xs:complexContent>
+    </xs:complexType>
+
+    <xs:complexType name="ncDescribeUtilizationType">
+      <xs:complexContent>
+	<xs:extension base="tns:eucalyptusMessage">
+	  <xs:sequence>
+	  </xs:sequence>
+	</xs:extension>
+      </xs:complexContent>
+    </xs:complexType>
+
+    <xs:complexType name="ncDescribeUtilizationResponseType">
+      <xs:complexContent>
+	<xs:extension base="tns:eucalyptusMessage">
+	  <xs:sequence>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="unbounded" name="instances" type="tns:instanceUtilization"/>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="utilization" type="xs:int"/>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="networkUtilization" type="xs:int"/>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="powerConsumption" type="xs:int"/>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="measurementTimepoint" type="xs:long"/>
+	  </xs:sequence>
+	</xs:extension>
+      </xs:complexContent>
+    </xs:complexType>
+
+    <xs:complexType name="instanceUtilization">
+      <xs:sequence>
+	<xs:element nillable="true" minOccurs="0" maxOccurs="1" name="instanceId" type="xs:string"/>
+	<xs:element nillable="true" minOccurs="0" maxOccurs="1" name="numVcpus" type="xs:int"/>
+	<xs:element nillable="true" minOccurs="0" maxOccurs="unbounded" name="vcpuUtilization" type="xs:int"/>
+	<xs:element nillable="true" minOccurs="0" maxOccors="1" name="vnetworkUtilization" type="xs:int"/>
+      </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="ncDescribeInstanceUtilizationType">
+      <xs:complexContent>
+	<xs:extension base="tns:eucalyptusMessage">
+	  <xs:sequence>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="instanceId" type="xs:string"/>	    
+	  </xs:sequence>
+	</xs:extension>
+      </xs:complexContent>
+    </xs:complexType>
+
+    <xs:complexType name="ncDescribeInstanceUtilizationResponseType">
+      <xs:complexContent>
+	<xs:extension base="tns:eucalyptusMessage">
+	  <xs:sequence>
+	    <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="utilization" type="xs:int"/>
+	  </xs:sequence>
+	</xs:extension>
+      </xs:complexContent>
+    </xs:complexType>
+
+    <xs:complexType name="ncMigrateInstanceType">
+      <xs:complexContent>
+	<xs:extension base="tns:eucalyptusMessage">
+	  <xs:sequence>
+	    <xs:element name="instanceId" minOccurs="0" maxOccurs="1" type="xs:string" />
+	    <xs:element name="target" minOccurs="0" maxOccurs="1" type="xs:string" />
+	  </xs:sequence>
+	</xs:extension>
+      </xs:complexContent>
+    </xs:complexType>
+
+    <xs:complexType name="ncMigrateInstanceResponseType">
+      <xs:complexContent>
+	<xs:extension base="tns:eucalyptusMessage">
+	  <xs:sequence>
+	  </xs:sequence>
+	</xs:extension>
+      </xs:complexContent>
+    </xs:complexType>
+
     <xs:complexType name="ncDescribeInstancesType">
       <xs:complexContent>
 	<xs:extension base="tns:eucalyptusMessage">
@@ -298,9 +396,42 @@
 	</xs:extension>
       </xs:complexContent>
     </xs:complexType>
+
+    <xs:complexType name="ncAdoptInstancesType">
+      <xs:complexContent>
+	<xs:extension base="tns:eucalyptusMessage">
+	  <xs:sequence>
+	  </xs:sequence>
+	</xs:extension>
+      </xs:complexContent>
+    </xs:complexType>
     
+    <xs:complexType name="ncAdoptInstancesResponseType">
+      <xs:complexContent>
+	<xs:extension base="tns:eucalyptusMessage">
+	  <xs:sequence>
+	  </xs:sequence>
+	</xs:extension>
+      </xs:complexContent>
+    </xs:complexType>
+    
+    <xs:element name="ncDescribeHardware" nillable="true" type="tns:ncDescribeHardwareType"/>
+    <xs:element name="ncDescribeHardwareResponse" nillable="true" type="tns:ncDescribeHardwareResponseType"/>
+
+    <xs:element name="ncDescribeUtilization" nillable="true" type="tns:ncDescribeUtilizationType"/>
+    <xs:element name="ncDescribeUtilizationResponse" nillable="true" type="tns:ncDescribeUtilizationResponseType"/>
+
+    <xs:element name="ncDescribeInstanceUtilization" nillable="true" type="tns:ncDescribeInstanceUtilizationType"/>
+    <xs:element name="ncDescribeInstanceUtilizationResponse" nillable="true" type="tns:ncDescribeInstanceUtilizationResponseType"/>
+
+    <xs:element name="ncMigrateInstance" nillable="true" type="tns:ncMigrateInstanceType"/>
+    <xs:element name="ncMigrateInstanceResponse" nillable="true" type="tns:ncMigrateInstanceResponseType"/>
+
     <xs:element name="ncPowerDown" nillable="true" type="tns:ncPowerDownType"/>
     <xs:element name="ncPowerDownResponse" nillable="true" type="tns:ncPowerDownResponseType"/>
+
+    <xs:element name="ncAdoptInstances" nillable="true" type="tns:ncAdoptInstancesType"/>
+    <xs:element name="ncAdoptInstancesResponse" nillable="true" type="tns:ncAdoptInstancesResponseType"/>
     
     <xs:element name="ncStartNetwork" nillable="true" type="tns:ncStartNetworkType"/>
     <xs:element name="ncStartNetworkResponse" nillable="true" type="tns:ncStartNetworkResponseType"/>
@@ -332,8 +463,48 @@
   </xs:schema>
 </wsdl:types>
 
+<wsdl:message name="ncDescribeHardware">
+  <wsdl:part element="tns:ncDescribeHardware" name="ncDescribeHardware">
+  </wsdl:part>
+</wsdl:message>
+
+<wsdl:message name="ncDescribeHardwareResponse">
+  <wsdl:part element="tns:ncDescribeHardwareResponse" name="ncDescribeHardwareResponse">
+  </wsdl:part>
+</wsdl:message>
+
+<wsdl:message name="ncDescribeUtilization">
+  <wsdl:part element="tns:ncDescribeUtilization" name="ncDescribeUtilization">
+  </wsdl:part>
+</wsdl:message>
+
+<wsdl:message name="ncDescribeUtilizationResponse">
+  <wsdl:part element="tns:ncDescribeUtilizationResponse" name="ncDescribeUtilizationResponse">
+  </wsdl:part>
+</wsdl:message>
+
+<wsdl:message name="ncDescribeInstanceUtilization">
+  <wsdl:part element="tns:ncDescribeInstanceUtilization" name="ncDescribeInstanceUtilization">
+  </wsdl:part>
+</wsdl:message>
+
+<wsdl:message name="ncDescribeInstanceUtilizationResponse">
+  <wsdl:part element="tns:ncDescribeInstanceUtilizationResponse" name="ncDescribeInstanceUtilizationResponse">
+  </wsdl:part>
+</wsdl:message>
+
+<wsdl:message name="ncMigrateInstanceResponse">
+  <wsdl:part element="tns:ncMigrateInstanceResponse" name="ncMigrateInstanceResponse">
+  </wsdl:part>
+</wsdl:message>
+
 <wsdl:message name="ncPowerDownResponse">
   <wsdl:part element="tns:ncPowerDownResponse" name="ncPowerDownResponse">
+  </wsdl:part>
+</wsdl:message>
+
+<wsdl:message name="ncAdoptInstancesResponse">
+  <wsdl:part element="tns:ncAdoptInstancesResponse" name="ncAdoptInstancesResponse">
   </wsdl:part>
 </wsdl:message>
 
@@ -387,8 +558,18 @@
   </wsdl:part>
 </wsdl:message>
 
+<wsdl:message name="ncMigrateInstance">
+  <wsdl:part element="tns:ncMigrateInstance" name="ncMigrateInstance">
+  </wsdl:part>
+</wsdl:message>
+
 <wsdl:message name="ncPowerDown">
   <wsdl:part element="tns:ncPowerDown" name="ncPowerDown">
+  </wsdl:part>
+</wsdl:message>
+
+<wsdl:message name="ncAdoptInstances">
+  <wsdl:part element="tns:ncAdoptInstances" name="ncAdoptInstances">
   </wsdl:part>
 </wsdl:message>
 
@@ -433,11 +614,46 @@
 </wsdl:message>
 
 <wsdl:portType name="EucalyptusNC">
-  
+
+  <wsdl:operation name="ncDescribeHardware">
+    <wsdl:input message="tns:ncDescribeHardware" name="ncDescribeHardware">
+    </wsdl:input>
+    <wsdl:output message="tns:ncDescribeHardwareResponse" name="ncDescribeHardwareResponse">
+    </wsdl:output>
+  </wsdl:operation>
+
+  <wsdl:operation name="ncDescribeUtilization">
+    <wsdl:input message="tns:ncDescribeUtilization" name="ncDescribeUtilization">
+    </wsdl:input>
+    <wsdl:output message="tns:ncDescribeUtilizationResponse" name="ncDescribeUtilizationResponse">
+    </wsdl:output>
+  </wsdl:operation>
+
+  <wsdl:operation name="ncDescribeInstanceUtilization">
+    <wsdl:input message="tns:ncDescribeInstanceUtilization" name="ncDescribeInstanceUtilization">
+    </wsdl:input>
+    <wsdl:output message="tns:ncDescribeInstanceUtilizationResponse" name="ncDescribeInstanceUtilizationResponse">
+    </wsdl:output>
+  </wsdl:operation>
+
+  <wsdl:operation name="ncMigrateInstance">
+    <wsdl:input message="tns:ncMigrateInstance" name="ncMigrateInstance">
+    </wsdl:input>
+    <wsdl:output message="tns:ncMigrateInstanceResponse" name="ncMigrateInstanceResponse">
+    </wsdl:output>
+  </wsdl:operation>
+
   <wsdl:operation name="ncPowerDown">
     <wsdl:input message="tns:ncPowerDown" name="ncPowerDown">
     </wsdl:input>
     <wsdl:output message="tns:ncPowerDownResponse" name="ncPowerDownResponse">
+    </wsdl:output>
+  </wsdl:operation>
+
+  <wsdl:operation name="ncAdoptInstances">
+    <wsdl:input message="tns:ncAdoptInstances" name="ncAdoptInstances">
+    </wsdl:input>
+    <wsdl:output message="tns:ncAdoptInstancesResponse" name="ncAdoptInstancesResponse">
     </wsdl:output>
   </wsdl:operation>
 
@@ -509,12 +725,63 @@
 <wsdl:binding name="EucalyptusNCSoapBinding" type="tns:EucalyptusNC">
   <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
   
+  <wsdl:operation name="ncDescribeHardware">
+    <soap:operation soapAction="EucapyltusNC#ncDescribeHardware" style="document"/>
+    <wsdl:input name="ncDescribeHardware">
+      <soap:body use="literal"/>
+    </wsdl:input>
+    <wsdl:output name="ncDescribeHardwareResponse">
+      <soap:body use="literal"/>
+    </wsdl:output>
+  </wsdl:operation>
+
+ <wsdl:operation name="ncDescribeUtilization">
+    <soap:operation soapAction="EucapyltusNC#ncDescribeUtilization" style="document"/>
+    <wsdl:input name="ncDescribeUtilization">
+      <soap:body use="literal"/>
+    </wsdl:input>
+    <wsdl:output name="ncDescribeUtilizationResponse">
+      <soap:body use="literal"/>
+    </wsdl:output>
+  </wsdl:operation>
+
+ <wsdl:operation name="ncDescribeInstanceUtilization">
+    <soap:operation soapAction="EucapyltusNC#ncDescribeInstanceUtilization" style="document"/>
+    <wsdl:input name="ncDescribeInstanceUtilization">
+      <soap:body use="literal"/>
+    </wsdl:input>
+    <wsdl:output name="ncDescribeInstanceUtilizationResponse">
+      <soap:body use="literal"/>
+    </wsdl:output>
+  </wsdl:operation>
+
+
+ <wsdl:operation name="ncMigrateInstance">
+   <soap:operation soapAction="EucalyptusNC#ncMigrateInstance" style="document"/>
+   <wsdl:input name="ncMigrateInstance">
+     <soap:body use="literal"/>
+   </wsdl:input>
+   <wsdl:output name="ncMigrateInstanceResponse">
+     <soap:body use="literal"/>
+   </wsdl:output>
+ </wsdl:operation>
+
   <wsdl:operation name="ncPowerDown">
     <soap:operation soapAction="EucalyptusNC#ncPowerDown" style="document"/>
     <wsdl:input name="ncPowerDown">
       <soap:body use="literal"/>
     </wsdl:input>
     <wsdl:output name="ncPowerDownResponse">
+      <soap:body use="literal"/>
+    </wsdl:output>
+  </wsdl:operation>
+
+  <wsdl:operation name="ncAdoptInstances">
+    <soap:operation soapAction="EucalyptusNC#ncAdoptInstances" style="document"/>
+    <wsdl:input name="ncAdoptInstances">
+      <soap:body use="literal"/>
+    </wsdl:input>
+    <wsdl:output name="ncAdoptInstancesResponse">
       <soap:body use="literal"/>
     </wsdl:output>
   </wsdl:operation>

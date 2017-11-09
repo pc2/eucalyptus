@@ -1147,6 +1147,282 @@ adb_TerminateInstancesResponse_t *TerminateInstancesMarshal(adb_TerminateInstanc
   return(ret);
 }
 
+adb_DescribePerformanceResponse_t *DescribePerformanceMarshal(adb_DescribePerformance_t *describePerformance, const axutil_env_t *env) {
+  /* output */
+  adb_DescribePerformanceResponse_t *ret = NULL;
+  adb_describePerformanceResponseType_t *dprt = NULL;
+  
+  /* input */
+  adb_describePerformanceType_t *dpt = NULL;
+
+  int rc=0, totalCpuCores=0, avgMhz=0;
+  axis2_bool_t status=AXIS2_TRUE;
+  char statusMessage[256];
+
+  ncMetadata ccMeta;
+
+  dpt = adb_DescribePerformance_get_DescribePerformance(describePerformance, env);
+  ccMeta.correlationId = adb_describePerformanceType_get_correlationId(dpt, env);
+  ccMeta.userId = adb_describePerformanceType_get_userId(dpt, env);
+
+  rc = doDescribePerformance(&ccMeta, &totalCpuCores, &avgMhz);
+
+  dprt = adb_describePerformanceResponseType_create(env);
+  if(rc) {
+    logprintf("ERROR: doDescribePerformance() failed %d\n", rc);
+    status=AXIS2_FALSE;
+    snprintf(statusMessage, 255, "ERROR");
+  } else {
+    adb_describePerformanceResponseType_set_totalCpuCores(dprt, env, totalCpuCores);
+    adb_describePerformanceResponseType_set_avgMhz(dprt, env, avgMhz);
+  }
+  adb_describePerformanceResponseType_set_correlationId(dprt, env, ccMeta.correlationId);
+  adb_describePerformanceResponseType_set_userId(dprt, env, ccMeta.userId);
+  adb_describePerformanceResponseType_set_return(dprt, env, status);
+  if (status == AXIS2_FALSE) {
+    adb_describePerformanceResponseType_set_statusMessage(dprt, env, statusMessage);
+  }
+
+  ret = adb_DescribePerformanceResponse_create(env);
+  adb_DescribePerformanceResponse_set_DescribePerformanceResponse(ret, env, dprt);
+
+  return (ret);
+}
+
+adb_DescribeUtilizationResponse_t *DescribeUtilizationMarshal(adb_DescribeUtilization_t *describeUtilization, const axutil_env_t *env) {
+    /* output */
+  adb_DescribeUtilizationResponse_t *ret = NULL;
+  adb_describeUtilizationResponseType_t *durt = NULL;
+  
+  /* input */
+  adb_describeUtilizationType_t *dut = NULL;
+
+  int rc=0, utilization=0;
+  axis2_bool_t status=AXIS2_TRUE;
+  char statusMessage[256];
+
+  ncMetadata ccMeta;
+
+  dut = adb_DescribeUtilization_get_DescribeUtilization(describeUtilization, env);
+  ccMeta.correlationId = adb_describeUtilizationType_get_correlationId(dut, env);
+  ccMeta.userId = adb_describeUtilizationType_get_userId(dut, env);
+
+  rc = doDescribeUtilization(&ccMeta, &utilization);
+
+  durt = adb_describeUtilizationResponseType_create(env);
+  if(rc) {
+    logprintf("ERROR: doDescribeUtilization() failed %d\n", rc);
+    status=AXIS2_FALSE;
+    snprintf(statusMessage, 255, "ERROR");
+  } else {
+    adb_describeUtilizationResponseType_set_utilization(durt, env, utilization);
+  }
+  adb_describeUtilizationResponseType_set_correlationId(durt, env, ccMeta.correlationId);
+  adb_describeUtilizationResponseType_set_userId(durt, env, ccMeta.userId);
+  adb_describeUtilizationResponseType_set_return(durt, env, status);
+  if (status == AXIS2_FALSE) {
+    adb_describeUtilizationResponseType_set_statusMessage(durt, env, statusMessage);
+  }
+
+  ret = adb_DescribeUtilizationResponse_create(env);
+  adb_DescribeUtilizationResponse_set_DescribeUtilizationResponse(ret, env, durt);
+
+  return (ret);
+}
+
+adb_DescribePowerConsumptionResponse_t *DescribePowerConsumptionMarshal(adb_DescribePowerConsumption_t *describePowerConsumption, const axutil_env_t *env) {
+    /* output */
+  adb_DescribePowerConsumptionResponse_t *ret = NULL;
+  adb_describePowerConsumptionResponseType_t *dpcrt = NULL;
+  
+  /* input */
+  adb_describePowerConsumptionType_t *dpct = NULL;
+
+  int rc=0, powerConsumption=0;
+  int powerIncrease=0;
+  axis2_bool_t status=AXIS2_TRUE;
+  char statusMessage[256];
+
+  ncMetadata ccMeta;
+
+  dpct = adb_DescribePowerConsumption_get_DescribePowerConsumption(describePowerConsumption, env);
+  ccMeta.correlationId = adb_describePowerConsumptionType_get_correlationId(dpct, env);
+  ccMeta.userId = adb_describePowerConsumptionType_get_userId(dpct, env);
+
+  rc = doDescribePowerConsumption(&ccMeta, &powerConsumption);
+  rc += doDescribePowerIncrease(&ccMeta, &powerIncrease);
+
+  dpcrt = adb_describePowerConsumptionResponseType_create(env);
+  if(rc) {
+    logprintf("ERROR: doDescribePowerConsumption() failed %d\n", rc);
+    status=AXIS2_FALSE;
+    snprintf(statusMessage, 255, "ERROR");
+  } else {
+    adb_describePowerConsumptionResponseType_set_powerConsumption(dpcrt, env, powerConsumption);
+    adb_describePowerConsumptionResponseType_set_powerIncrease(dpcrt, env, powerIncrease);
+  }
+  adb_describePowerConsumptionResponseType_set_correlationId(dpcrt, env, ccMeta.correlationId);
+  adb_describePowerConsumptionResponseType_set_userId(dpcrt, env, ccMeta.userId);
+  adb_describePowerConsumptionResponseType_set_return(dpcrt, env, status);
+  if (status == AXIS2_FALSE) {
+    adb_describePowerConsumptionResponseType_set_statusMessage(dpcrt, env, statusMessage);
+  }
+
+  ret = adb_DescribePowerConsumptionResponse_create(env);
+  adb_DescribePowerConsumptionResponse_set_DescribePowerConsumptionResponse(ret, env, dpcrt);
+
+  return (ret);
+}
+
+adb_DescribeUsersInstancesResponse_t *DescribeUsersInstancesMarshal(adb_DescribeUsersInstances_t *describeUsersInstances, const axutil_env_t *env) {
+  /* output */
+  adb_DescribeUsersInstancesResponse_t *ret = NULL;
+  adb_describeUsersInstancesResponseType_t *durt = NULL;
+  
+  /* input */
+  adb_describeUsersInstancesType_t *dut = NULL;
+
+  int rc=0, numberOfInstances=0;
+  axis2_bool_t status=AXIS2_TRUE;
+  char statusMessage[256];
+
+  ncMetadata ccMeta;
+
+  dut = adb_DescribeUsersInstances_get_DescribeUsersInstances(describeUsersInstances, env);
+  ccMeta.correlationId = adb_describeUsersInstancesType_get_correlationId(dut, env);
+  ccMeta.userId = adb_describeUsersInstancesType_get_userId(dut, env);
+
+  rc = doDescribeUsersInstances(&ccMeta, &numberOfInstances);
+
+  durt = adb_describeUsersInstancesResponseType_create(env);
+  if(rc) {
+    logprintf("ERROR: doDescribeUsersInstances() failed %d\n", rc);
+    status=AXIS2_FALSE;
+    snprintf(statusMessage, 255, "ERROR");
+  } else {
+    adb_describeUsersInstancesResponseType_set_numberOfInstances(durt, env, numberOfInstances);
+  }
+  adb_describeUsersInstancesResponseType_set_correlationId(durt, env, ccMeta.correlationId);
+  adb_describeUsersInstancesResponseType_set_userId(durt, env, ccMeta.userId);
+  adb_describeUsersInstancesResponseType_set_return(durt, env, status);
+  if (status == AXIS2_FALSE) {
+    adb_describeUsersInstancesResponseType_set_statusMessage(durt, env, statusMessage);
+  }
+
+  ret = adb_DescribeUsersInstancesResponse_create(env);
+  adb_DescribeUsersInstancesResponse_set_DescribeUsersInstancesResponse(ret, env, durt);
+
+  return (ret);
+}
+
+adb_MonitorUtilizationResponse_t *MonitorInstancesMarshal(adb_MonitorUtilization_t *monitorUtilization, const axutil_env_t *env) {
+  adb_MonitorUtilizationResponse_t *ret = NULL;
+  adb_monitorUtilizationResponseType_t *murt = NULL;
+  
+  adb_monitorUtilizationType_t *mut = NULL;
+  int rc=0;
+  char statusMessage[256];
+  axis2_bool_t status=AXIS2_TRUE;
+  ncMetadata ccMeta;
+  
+  mut = adb_MonitorUtilization_get_MonitorUtilization(monitorUtilization, env);
+  ccMeta.correlationId = adb_monitorUtilizationType_get_correlationId(mut, env);
+  ccMeta.userId = adb_monitorUtilizationType_get_userId(mut, env);
+
+  updateMonitoringData(&ccMeta);
+
+  murt = adb_monitorUtilizationResponseType_create(env);
+  adb_monitorUtilizationResponseType_set_correlationId(murt, env, ccMeta.correlationId);
+  adb_monitorUtilizationResponseType_set_userId(murt, env, ccMeta.userId);
+  
+  ret = adb_MonitorUtilizationResponse_create(env);
+  adb_MonitorUtilizationResponse_set_MonitorUtilizationResponse(ret, env, murt);
+
+  return (ret);
+}
+
+adb_MigrateInstancesResponse_t *MigrateInstancesMarshal(adb_MigrateInstances_t *migrateInstances, const axutil_env_t *env) {
+  /* output */
+  adb_MigrateInstancesResponse_t *ret = NULL;
+  adb_migrateInstancesResponseType_t *mirt = NULL;
+
+  /* input */
+  adb_migrateInstancesType_t *mit = NULL;
+
+  int rc=0;
+  char statusMessage[256], *target;
+  axis2_bool_t status=AXIS2_TRUE;
+  ncMetadata ccMeta;
+
+  mit = adb_MigrateInstances_get_MigrateInstances(migrateInstances, env);
+  ccMeta.correlationId = adb_migrateInstancesType_get_correlationId(mit, env);
+  ccMeta.userId = adb_migrateInstancesType_get_userId(mit, env);
+  target = adb_migrateInstancesType_get_target(mit, env);
+  
+  rc = doMigrateInstances(&ccMeta, NULL, target);
+
+  mirt = adb_migrateInstancesResponseType_create(env);
+  if (rc) {
+    logprintf("ERROR: doMigrateInstances() fault %d\n", rc);
+    status=AXIS2_FALSE;
+    snprintf(statusMessage, 255, "ERROR");
+  } 
+  adb_migrateInstancesResponseType_set_correlationId(mirt, env, ccMeta.correlationId);
+  adb_migrateInstancesResponseType_set_userId(mirt, env, ccMeta.userId);
+  adb_migrateInstancesResponseType_set_return(mirt, env, status);
+  if (status == AXIS2_FALSE)
+    adb_migrateInstancesResponseType_set_statusMessage(mirt, env, statusMessage);
+
+  ret = adb_MigrateInstancesResponse_create(env);
+  adb_MigrateInstancesResponse_set_MigrateInstancesResponse(ret, env, mirt);
+
+  return (ret);
+}
+
+adb_ChangeSchedulingPolicyResponse_t *ChangeSchedulingPolicyMarshal(adb_ChangeSchedulingPolicy_t *changeSchedulingPolicy, const axutil_env_t *env) {
+  /* output */
+  adb_ChangeSchedulingPolicyResponse_t *ret = NULL;
+  adb_changeSchedulingPolicyResponseType_t *csprt = NULL;
+
+  /* input */
+  adb_changeSchedulingPolicyType_t *cspt = NULL;
+
+  int rc=0, performanceWeight, localityWeight, energyWeight;
+  char statusMessage[256], *policy;
+  axis2_bool_t status=AXIS2_TRUE;
+  ncMetadata ccMeta;
+  
+  cspt = adb_ChangeSchedulingPolicy_get_ChangeSchedulingPolicy(changeSchedulingPolicy, env);
+  ccMeta.correlationId = adb_changeSchedulingPolicyType_get_correlationId(cspt, env);
+  ccMeta.userId = adb_changeSchedulingPolicyType_get_userId(cspt, env);
+  policy = adb_changeSchedulingPolicyType_get_policy(cspt, env);
+  performanceWeight = adb_changeSchedulingPolicyType_get_performanceWeight(cspt, env);
+  localityWeight = adb_changeSchedulingPolicyType_get_localityWeight(cspt, env);
+  energyWeight = adb_changeSchedulingPolicyType_get_energyWeight(cspt, env);
+
+  rc = doChangeSchedulingPolicy(&ccMeta, policy, performanceWeight, localityWeight, energyWeight);
+  
+  csprt = adb_changeSchedulingPolicyResponseType_create(env);
+  if(rc) {
+    logprintf("ERROR: doChangeSchedulingPolicy() failed %d\n", rc);
+    status=AXIS2_FALSE;
+    snprintf(statusMessage, 255, "ERROR");
+  } else {
+  }
+  adb_changeSchedulingPolicyResponseType_set_correlationId(csprt, env, ccMeta.correlationId);
+  adb_changeSchedulingPolicyResponseType_set_userId(csprt, env, ccMeta.userId);
+  adb_changeSchedulingPolicyResponseType_set_return(csprt, env, status);
+  if (status == AXIS2_FALSE) {
+    adb_changeSchedulingPolicyResponseType_set_statusMessage(csprt, env, statusMessage);
+  }
+
+  ret = adb_ChangeSchedulingPolicyResponse_create(env);
+  adb_ChangeSchedulingPolicyResponse_set_ChangeSchedulingPolicyResponse(ret, env, csprt);
+
+  return (ret);
+}
+
+
 void print_adb_ccInstanceType(adb_ccInstanceType_t *in) {
   
 }

@@ -84,5 +84,7 @@ int cc_getConsoleOutput(char *instId, axutil_env_t *, axis2_stub_t *);
 int cc_rebootInstances(char **instIds, int instIdsLen, axutil_env_t *, axis2_stub_t *);
 int cc_terminateInstances(char **instIds, int instIdsLen, axutil_env_t *, axis2_stub_t *);
 int cc_killallInstances(axutil_env_t *, axis2_stub_t *);
-
+int cc_migrateInstances(char *target, axutil_env_t *env, axis2_stub_t *stub);
+int cc_monitorUtilization(axutil_env_t *env, axis2_stub_t *stub);
+int cc_changeSchedulingPolicy(axutil_env_t *env, axis2_stub_t *stub, char *policy, int performanceWeight, int localityWeight, int energyWeight);
 #endif

@@ -72,4 +72,9 @@ adb_ncRebootInstanceResponse_t* ncRebootInstanceMarshal (adb_ncRebootInstance_t*
 adb_ncGetConsoleOutputResponse_t* ncGetConsoleOutputMarshal (adb_ncGetConsoleOutput_t* ncGetConsoleOutput, const axutil_env_t *env);
 adb_ncAttachVolumeResponse_t* ncAttachVolumeMarshal (adb_ncAttachVolume_t* ncAttachVolume, const axutil_env_t *env);
 adb_ncDetachVolumeResponse_t* ncDetachVolumeMarshal (adb_ncDetachVolume_t* ncDetachVolume, const axutil_env_t *env);
+adb_ncDescribeHardwareResponse_t* ncDescribeHardwareMarshal (adb_ncDescribeHardware_t* ncDescribeHardware, const axutil_env_t *env);
+adb_ncDescribeUtilizationResponse_t* ncDescribeUtilizationMarshal (adb_ncDescribeUtilization_t* ncDescribeUtilization, const axutil_env_t *env);
+adb_ncDescribeInstanceUtilizationResponse_t* ncDescribeInstanceUtilizationMarshal (adb_ncDescribeInstanceUtilization_t* ncDescribeInstanceUtilization, const axutil_env_t *env);
+adb_ncMigrateInstanceResponse_t* ncMigrateInstanceMarshal (adb_ncMigrateInstance_t* ncMigrateInstance, const axutil_env_t *env);
+adb_ncAdoptInstancesResponse_t* ncAdoptInstancesMarshal (adb_ncAdoptInstances_t* ncAdoptInstances, const axutil_env_t *env);
 #endif

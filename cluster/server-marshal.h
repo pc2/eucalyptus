@@ -83,6 +83,13 @@ adb_ConfigureNetworkResponse_t *ConfigureNetworkMarshal(adb_ConfigureNetwork_t *
 adb_AttachVolumeResponse_t *AttachVolumeMarshal(adb_AttachVolume_t *attachVolume, const axutil_env_t *env);
 adb_DetachVolumeResponse_t *DetachVolumeMarshal(adb_DetachVolume_t *detachVolume, const axutil_env_t *env);
 
+adb_DescribePerformanceResponse_t *DescribePerformanceMarshal(adb_DescribePerformance_t *describePerformance, const axutil_env_t *env);
+adb_DescribeUtilizationResponse_t *DescribeUtilizationMarshal(adb_DescribeUtilization_t *describeUtilization, const axutil_env_t *env);
+adb_DescribePowerConsumptionResponse_t *DescribePowerConsumptionMarshal(adb_DescribePowerConsumption_t *describePowerConsumption, const axutil_env_t *env);
+adb_DescribeUsersInstancesResponse_t *DescribeUsersInstancesMarshal(adb_DescribeUsersInstances_t *describePerformance, const axutil_env_t *env);
+adb_MonitorUtilizationResponse_t *MonitorUtilizationMarshal(adb_MonitorUtilization_t *monitorUtilization, const axutil_env_t *env);
+adb_MigrateInstancesResponse_t *MigrateInstancesMarshal(adb_MigrateInstances_t *migrateInstances, const axutil_env_t *env);
+adb_ChangeSchedulingPolicyResponse_t *ChangeSchedulingPolicyMarshal(adb_ChangeSchedulingPolicy_t *changeSchedulingPolicy, const axutil_env_t *env);
 void print_adb_ccInstanceType(adb_ccInstanceType_t *in);
 int ccInstanceUnmarshal(adb_ccInstanceType_t *dst, ccInstance *src, const axutil_env_t *env);
 #endif

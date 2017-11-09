@@ -442,6 +442,143 @@
 	</xs:complexContent>
       </xs:complexType>
 
+      <xs:complexType name="describePerformanceType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
+      <xs:complexType name="describePerformanceResponseType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	      <xs:element minOccurs="0" maxOccurs="1" name="totalCpuCores" type="xs:int"/>
+	      <xs:element minOccurs="0" maxOccurs="1" name="avgMhz" type="xs:int"/>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
+      <xs:complexType name="describeUtilizationType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
+      <xs:complexType name="describeUtilizationResponseType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	      <xs:element minOccurs="0" maxOccurs="1" name="utilization" type="xs:int"/>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
+      <xs:complexType name="describePowerConsumptionType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
+      <xs:complexType name="describePowerConsumptionResponseType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	      <xs:element minOccurs="0" maxOccurs="1" name="powerConsumption" type="xs:int"/>
+	      <xs:element minOccurs="0" maxOccurs="1" name="powerIncrease" type="xs:int"/>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
+      <xs:complexType name="describeUsersInstancesType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
+      <xs:complexType name="describeUsersInstancesResponseType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	      <xs:element minOccurs="0" maxOccurs="1" name="numberOfInstances" type="xs:int"/>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
+      <xs:complexType name="migrateInstancesType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	      <xs:element minOccurs="0" name="target" type="xs:string"/>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
+      <xs:complexType name="migrateInstancesResponseType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
+      <xs:complexType name="monitorUtilizationType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
+      <xs:complexType name="monitorUtilizationResponseType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
+      <xs:complexType name="changeSchedulingPolicyType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	      <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="policy" type="xs:string"/>
+	      <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="performanceWeight" type="xs:int"/>
+	      <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="localityWeight" type="xs:int"/>
+	      <xs:element nillable="true" minOccurs="0" maxOccurs="1" name="energyWeight" type="xs:int"/>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
+      <xs:complexType name="changeSchedulingPolicyResponseType">
+	<xs:complexContent>
+	  <xs:extension base="tns:eucalyptusMessage">
+	    <xs:sequence>
+	    </xs:sequence>
+	  </xs:extension>
+	</xs:complexContent>
+      </xs:complexType>
+
       <xs:element name="AttachVolume" nillable="true" type="tns:attachVolumeType"/>
       <xs:element name="AttachVolumeResponse" nillable="true" type="tns:attachVolumeResponseType"/>
 
@@ -492,6 +629,26 @@
       <xs:element name="RunInstances" nillable="true" type="tns:runInstancesType"/>
       <xs:element name="RunInstancesResponse" nillable="true" type="tns:runInstancesResponseType"/>
       
+      <xs:element name="DescribePerformance" nillable="true" type="tns:describePerformanceType"/>
+      <xs:element name="DescribePerformanceResponse" nillable="true" type="tns:describePerformanceResponseType"/>
+
+      <xs:element name="DescribeUtilization" nillable="true" type="tns:describeUtilizationType"/>
+      <xs:element name="DescribeUtilizationResponse" nillable="true" type="tns:describeUtilizationResponseType"/>
+
+      <xs:element name="DescribePowerConsumption" nillable="true" type="tns:describePowerConsumptionType"/>
+      <xs:element name="DescribePowerConsumptionResponse" nillable="true" type="tns:describePowerConsumptionResponseType"/>
+
+      <xs:element name="DescribeUsersInstances" nillable="true" type="tns:describeUsersInstancesType"/>
+      <xs:element name="DescribeUsersInstancesResponse" nillable="true" type="tns:describeUsersInstancesResponseType"/>
+
+      <xs:element name="MigrateInstances" nillable="true" type="tns:migrateInstancesType"/>
+      <xs:element name="MigrateInstancesResponse" nillable="true" type="tns:migrateInstancesResponseType"/>
+
+      <xs:element name="MonitorUtilization" nillable="true" type="tns:monitorUtilizationType"/>
+      <xs:element name="MonitorUtilizationResponse" nillable="true" type="tns:monitorUtilizationResponseType"/>
+
+      <xs:element name="ChangeSchedulingPolicy" nillable="true" type="tns:changeSchedulingPolicyType"/>
+      <xs:element name="ChangeSchedulingPolicyResponse" nillable="true" type="tns:changeSchedulingPolicyResponseType"/>
     </xs:schema>
   </wsdl:types>
   
@@ -562,6 +719,41 @@
   
   <wsdl:message name="TerminateInstancesResponse">
     <wsdl:part element="tns:TerminateInstancesResponse" name="TerminateInstancesResponse">
+    </wsdl:part>
+  </wsdl:message>
+
+  <wsdl:message name="DescribePerformanceResponse">
+    <wsdl:part element="tns:DescribePerformanceResponse" name="DescribePerformanceResponse">
+    </wsdl:part>
+  </wsdl:message>
+
+  <wsdl:message name="DescribeUtilizationResponse">
+    <wsdl:part element="tns:DescribeUtilizationResponse" name="DescribeUtilizationResponse">
+    </wsdl:part>
+  </wsdl:message>
+
+  <wsdl:message name="DescribePowerConsumptionResponse">
+    <wsdl:part element="tns:DescribePowerConsumptionResponse" name="DescribePowerConsumptionResponse">
+    </wsdl:part>
+  </wsdl:message>
+
+  <wsdl:message name="DescribeUsersInstancesResponse">
+    <wsdl:part element="tns:DescribeUsersInstancesResponse" name="DescribeUsersInstancesResponse">
+    </wsdl:part>
+  </wsdl:message>
+
+  <wsdl:message name="MigrateInstancesResponse">
+    <wsdl:part element="tns:MigrateInstancesResponse" name="MigrateInstancesResponse">
+    </wsdl:part>
+  </wsdl:message>
+
+  <wsdl:message name="MonitorUtilizationResponse">
+    <wsdl:part element="tns:MonitorUtilizationResponse" name="MonitorUtilizationResponse">
+    </wsdl:part>
+  </wsdl:message>
+  
+  <wsdl:message name="ChangeSchedulingPolicyResponse">
+    <wsdl:part element="tns:ChangeSchedulingPolicyResponse" name="ChangeSchedulingPolicyResponse">
     </wsdl:part>
   </wsdl:message>
 
@@ -649,6 +841,41 @@
 
   <wsdl:message name="TerminateInstances">
     <wsdl:part element="tns:TerminateInstances" name="TerminateInstances">
+    </wsdl:part>
+  </wsdl:message>
+
+  <wsdl:message name="DescribePerformance">
+    <wsdl:part element="tns:DescribePerformance" name="DescribePerformance">
+    </wsdl:part>
+  </wsdl:message>
+
+  <wsdl:message name="DescribeUtilization">
+    <wsdl:part element="tns:DescribeUtilization" name="DescribeUtilization">
+    </wsdl:part>
+  </wsdl:message>
+
+  <wsdl:message name="DescribePowerConsumption">
+    <wsdl:part element="tns:DescribePowerConsumption" name="DescribePowerConsumption">
+    </wsdl:part>
+  </wsdl:message>
+
+  <wsdl:message name="DescribeUsersInstances">
+    <wsdl:part element="tns:DescribeUsersInstances" name="DescribeUsersInstances">
+    </wsdl:part>
+  </wsdl:message>
+
+  <wsdl:message name="MigrateInstances">
+    <wsdl:part element="tns:MigrateInstances" name="MigrateInstances">
+    </wsdl:part>
+  </wsdl:message>
+
+  <wsdl:message name="MonitorUtilization">
+    <wsdl:part element="tns:MonitorUtilization" name="MonitorUtilization">
+    </wsdl:part>
+  </wsdl:message>
+
+  <wsdl:message name="ChangeSchedulingPolicy">
+    <wsdl:part element="tns:ChangeSchedulingPolicy" name="ChangeSchedulingPolicy">
     </wsdl:part>
   </wsdl:message>
 
@@ -770,9 +997,58 @@
 
     <wsdl:operation name="RunInstances">
       <wsdl:input message="tns:RunInstances" name="RunInstances">
-    </wsdl:input>
+      </wsdl:input>
       <wsdl:output message="tns:RunInstancesResponse" name="RunInstancesResponse">
-    </wsdl:output>
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="DescribePerformance">
+      <wsdl:input message="tns:DescribePerformance" name="DescribePerformance">
+      </wsdl:input>
+      <wsdl:output message="tns:DescribePerformanceResponse" name="DescribePerformanceResponse">
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="DescribeUtilization">
+      <wsdl:input message="tns:DescribeUtilization" name="DescribeUtilization">
+      </wsdl:input>
+      <wsdl:output message="tns:DescribeUtilizationResponse" name="DescribeUtilizationResponse">
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="DescribePowerConsumption">
+      <wsdl:input message="tns:DescribePowerConsumption" name="DescribePowerConsumption">
+      </wsdl:input>
+      <wsdl:output message="tns:DescribePowerConsumptionResponse" name="DescribePowerConsumptionResponse">
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="DescribeUsersInstances">
+      <wsdl:input message="tns:DescribeUsersInstances" name="DescribeUsersInstances">
+      </wsdl:input>
+      <wsdl:output message="tns:DescribeUsersInstancesResponse" name="DescribeUsersInstancesResponse">
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="MigrateInstances">
+      <wsdl:input message="tns:MigrateInstances" name="MigrateInstances">
+      </wsdl:input>
+      <wsdl:output message="tns:MigrateInstancesResponse" name="MigrateInstancesResponse">
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="MonitorUtilization">
+      <wsdl:input message="tns:MonitorUtilization" name="MonitorUtilization">
+      </wsdl:input>
+      <wsdl:output message="tns:MonitorUtilizationResponse" name="MonitorUtilizationResponse">
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="ChangeSchedulingPolicy">
+      <wsdl:input message="tns:ChangeSchedulingPolicy" name="ChangeSchedulingPolicy">
+      </wsdl:input>
+      <wsdl:output message="tns:ChangeSchedulingPolicyResponse" name="ChangeSchedulingPolicyResponse">
+      </wsdl:output>
     </wsdl:operation>
   </wsdl:portType>
 
@@ -937,6 +1213,76 @@
         <soap:body use="literal"/>
       </wsdl:input>
       <wsdl:output name="RunInstancesResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="DescribePerformance">
+      <soap:operation soapAction="EucalyptusCC#DescribePerformance" style="document"/>
+      <wsdl:input name="DescribePerformance">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="DescribePerformanceResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="DescribeUtilization">
+      <soap:operation soapAction="EucalyptusCC#DescribeUtilization" style="document"/>
+      <wsdl:input name="DescribeUtilization">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="DescribeUtilizationResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="DescribePowerConsumption">
+      <soap:operation soapAction="EucalyptusCC#DescribePowerConsumption" style="document"/>
+      <wsdl:input name="DescribePowerConsumption">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="DescribePowerConsumptionResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="DescribeUsersInstances">
+      <soap:operation soapAction="EucalyptusCC#DescribeUsersInstances" style="document"/>
+      <wsdl:input name="DescribeUsersInstances">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="DescribeUsersInstancesResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="MigrateInstances">
+      <soap:operation soapAction="EucalyptusCC#MigrateInstances" style="document"/>
+      <wsdl:input name="MigrateInstances">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="MigrateInstancesResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="MonitorUtilization">
+      <soap:operation soapAction="EucalyptusCC#MonitorUtilization" style="document"/>
+      <wsdl:input name="MonitorUtilization">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="MonitorUtilizationResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+
+    <wsdl:operation name="ChangeSchedulingPolicy">
+      <soap:operation soapAction="EucalyptusCC#ChangeSchedulingPolicy" style="document"/>
+      <wsdl:input name="ChangeSchedulingPolicy">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="ChangeSchedulingPolicyResponse">
         <soap:body use="literal"/>
       </wsdl:output>
     </wsdl:operation>
